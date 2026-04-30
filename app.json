@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "24",
+    "slug": "twenty-four",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#3C3489"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.personal.twentyfour"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#3C3489"
+      },
+      "package": "com.personal.twentyfour"
+    },
+    "plugins": [
+      "expo-notifications"
+    ]
+  }
+}

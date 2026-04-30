@@ -1,0 +1,18 @@
+# Dependencies — downloaded by npm install, never commit these
+node_modules/
+
+# Expo build outputs
+.expo/
+dist/
+web-build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables (secrets — never commit)
+.env
+.env.local
+
+# TypeScript build cache
+*.tsbuildinfo
