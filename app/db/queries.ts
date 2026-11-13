@@ -642,13 +642,17 @@ export async function isItemOwned(item_id: string): Promise<boolean> {
   return row !== null;
 }
 
-// Purchase an item: deduct treats, add to owned_items, log event
-// Returns false if not enough treats
+// Purchase an item: deduct treats, add to owned_items, log event.
+// Returns false (and charges nothing) if the item is already owned or there
+// are not enough treats. The ownership check lives here, next to the code
+// that takes the money, so no caller can double-charge by skipping a UI check.
 export async function purchaseItem(
   item_id: string,
   price: number,
   itemName: string
 ): Promise<boolean> {
+  if (await isItemOwned(item_id)) return false;
+
   const db      = await getDatabase();
   const row     = await db.getFirstAsync<{ treat_count: number }>(
     'SELECT treat_count FROM settings WHERE id = 1'

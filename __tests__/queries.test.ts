@@ -157,21 +157,32 @@ describe('purchaseItem', () => {
     expect(mockState.treat_count).toBe(0);
   });
 
-  test('idempotent on already-owned item (does not double-charge)', async () => {
-    // First purchase
+  test('already-owned item: returns false and does not charge again', async () => {
+    // First purchase succeeds.
     resetState({ treat_count: 100 });
-    await purchaseItem('outfit_cozy_sweater', 25, 'Cozy Sweater');
+    const first = await purchaseItem('outfit_cozy_sweater', 25, 'Cozy Sweater');
+    expect(first).toBe(true);
     expect(mockState.treat_count).toBe(75);
     expect(mockState.owned_items).toHaveLength(1);
 
-    // Second purchase of the SAME item
-    // (This test documents current behavior: the code DOES charge twice
-    // because purchaseItem doesn't check ownership. That's a real bug —
-    // the UI is supposed to gate it. Flagging by asserting current mockState
-    // so a future fix has an obvious test to flip.)
-    await purchaseItem('outfit_cozy_sweater', 25, 'Cozy Sweater');
-    expect(mockState.treat_count).toBe(50); // CHARGED AGAIN — known issue
-    expect(mockState.owned_items).toHaveLength(1); // INSERT OR IGNORE prevents dup
+    // Second purchase of the SAME item must be rejected before any money moves.
+    // (Before Phase 1 this charged a second 25 treats: the ownership check
+    // lived only in the shop UI, not in the function that takes the money.)
+    const second = await purchaseItem('outfit_cozy_sweater', 25, 'Cozy Sweater');
+    expect(second).toBe(false);
+    expect(mockState.treat_count).toBe(75);          // not charged again
+    expect(mockState.owned_items).toHaveLength(1);   // still one row
+    expect(mockState.treat_history).toHaveLength(1); // no second ledger entry
+  });
+
+  test('already-owned item is rejected even when the user can afford it twice', async () => {
+    resetState({ treat_count: 500, owned_items: [{ item_id: 'house_tent' }] });
+
+    const ok = await purchaseItem('house_tent', 40, 'Tent');
+
+    expect(ok).toBe(false);
+    expect(mockState.treat_count).toBe(500);
+    expect(mockState.treat_history).toEqual([]);
   });
 });
 
