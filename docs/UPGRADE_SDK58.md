@@ -94,3 +94,31 @@ passes this check, so it was accepted for this intermediate step (decision D9).
 It is gone after the SDK 57 step.
 
 Result: `tsc` clean, 115/115 tests, iOS export OK.
+
+---
+
+## SDK 57
+
+Source: https://expo.dev/changelog/sdk-57
+
+Versions: React Native 0.85 → 0.86 ("intended to have no breaking changes from
+0.85"), React stays at 19.2.3, `react-native-gesture-handler` 2.31 → 2.32.
+
+| Change in the release notes | Touches this app? | What was done |
+|---|---|---|
+| No breaking changes, deprecations, or removed APIs are listed | No | Nothing |
+| `expo prebuild` now cleans the native folders by default | No, there are no native folders | Nothing |
+| Hermes V1 memory regression fixed in `expo@57.0.9`, startup regression fixed in `57.0.17` | Installed `expo@57.0.33`, past both | The SDK 56 `expo-doctor` failure is gone |
+| "The SDK 57 Expo Go build is not yet on the App Store" | Only matters if you stop here | Nothing |
+
+No app code changed in this step.
+
+One install problem: `npx expo install expo@^57.0.0 --fix` stopped half way
+with an npm `ERESOLVE` error. Cause: Sentry 8 lists `expo-router` as an
+*optional* peer, and npm tried to line it up with the SDK 58 `expo-router`
+while the project was on SDK 57. Finished the install with
+`npm_config_legacy_peer_deps=true npx expo install --fix`, then ran a plain
+`npm install` to confirm the lockfile resolves normally. The setting was used
+for that one command only and is not saved anywhere.
+
+Result: `tsc` clean, 115/115 tests, `expo-doctor` 21/21, iOS export OK.
