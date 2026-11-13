@@ -31,6 +31,18 @@
       "expo-web-browser",
       "expo-secure-store",
       "@sentry/react-native"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "243210fe-095e-480d-890e-75e62ada9de0"
+      }
+    },
+    "owner": "sahil_4",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/243210fe-095e-480d-890e-75e62ada9de0"
+    }
   }
 }
