@@ -66,4 +66,6 @@ The shop purchase tests use a pattern-matching SQL mock rather than a real SQLit
 
 The `checkStreakOnOpen` tests use `jest.setSystemTime` at noon UTC to avoid timezone-dependent date arithmetic. If you ever change the date-parsing in `useAppStore.ts` to rely on the local timezone in a non-obvious way, these tests might need adjustment.
 
-The `purchaseItem` test "idempotent on already-owned item" deliberately documents a bug — it currently *does* double-charge the user if the UI lets them buy the same cosmetic twice. The shop UI gates this so it's not user-visible today, but the queries.ts function itself should reject. Worth a one-line fix: `if (await isItemOwned(item_id)) return false;` at the top of `purchaseItem`.
+**Update (Phase 1):** the `purchaseItem` double-charge described below is fixed. `purchaseItem` now returns `false` without charging when the item is already owned, and the test asserts that. Jest is also pinned to `America/New_York` (see `jest.global-setup.js`), and `__tests__/localDates.test.ts` covers the 11:30pm local-time cases.
+
+Original note: the `purchaseItem` test "idempotent on already-owned item" deliberately documents a bug — it currently *does* double-charge the user if the UI lets them buy the same cosmetic twice. The shop UI gates this so it's not user-visible today, but the queries.ts function itself should reject. Worth a one-line fix: `if (await isItemOwned(item_id)) return false;` at the top of `purchaseItem`.
