@@ -20,16 +20,14 @@ import {
   weeklyAdherence, buildDayAnalytics, getLastNDates,
 } from '../utils/calculations';
 import { runSync, isSyncReady } from '../services/calendarSync';
+import { getTodayString, getYesterdayString } from '../utils/dateHelpers';
 
-// Inline yesterday helper (avoids circular import with dateHelpers)
-function getYesterdayStr(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
-}
-function getTodayStr(): string {
-  return new Date().toISOString().split('T')[0];
-}
+// Date keys ("YYYY-MM-DD") must be the phone's LOCAL calendar day.
+// The old code cut the date out of toISOString(), which is UTC: in Boston
+// that rolls over at 7-8pm, so an evening open looked like "tomorrow" and
+// could reset or double-count the streak. dateHelpers formats in local time.
+const getTodayStr     = getTodayString;
+const getYesterdayStr = getYesterdayString;
 
 interface AppState {
   settings: Settings | null;

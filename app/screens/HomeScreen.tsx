@@ -124,9 +124,8 @@ export default function HomeScreen() {
 
   async function loadAll() {
     await loadTodaysTasks(today);
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const yTasks = await getTasksForDate(d.toISOString().split('T')[0]);
+    // Local yesterday (the old code used the UTC date here)
+    const yTasks = await getTasksForDate(shiftDateString(today, -1));
     setYesterdayAdherence(calculatePlanAdherence(yTasks));
     // Check if tomorrow has any tasks planned (for "Plan Tomorrow" card)
     const tmrTasks = await getTasksForDate(tomorrow);

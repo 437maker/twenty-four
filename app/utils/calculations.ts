@@ -1,6 +1,7 @@
 // calculations.ts — Business logic: scores, streaks, pillar hours, analytics.
 // Sprint 2: added analytics helpers for the Analytics screen.
 
+import { format } from 'date-fns';
 import { Task, DayAnalytics } from '../types';
 
 // ─── Plan adherence ───────────────────────────────────────────────────────────
@@ -133,13 +134,15 @@ export function weeklyBoxLabel(tier: 'gold' | 'silver' | 'basic'): string {
 
 // ─── Analytics helpers ────────────────────────────────────────────────────────
 
-// Build an array of date strings for the last N days (today last)
+// Build an array of date strings for the last N days (today last).
+// Uses LOCAL calendar days: format() reads the local year/month/day, while
+// toISOString() would give the UTC day (already "tomorrow" on a Boston evening).
 export function getLastNDates(n: number): string[] {
   const dates: string[] = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().split('T')[0]);
+    dates.push(format(d, 'yyyy-MM-dd'));
   }
   return dates;
 }

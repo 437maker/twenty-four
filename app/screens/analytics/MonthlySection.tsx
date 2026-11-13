@@ -25,6 +25,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 import { Settings, DayAnalytics, JournalEntry } from '../../types';
+import { getTodayString } from '../../utils/dateHelpers';
 
 // ─── Database queries ─────────────────────────────────────────────────────────
 import {
@@ -89,9 +90,9 @@ function shortDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/** Returns today's date as "YYYY-MM-DD". */
+/** Returns today's LOCAL date as "YYYY-MM-DD" (not the UTC date). */
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  return getTodayString();
 }
 
 /** Number of days in a given month (month is 0-indexed). */

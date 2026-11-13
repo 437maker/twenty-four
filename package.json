@@ -59,7 +59,8 @@
       "app/db/**/*.{ts,tsx}",
       "app/store/**/*.{ts,tsx}",
       "!app/**/*.d.ts"
-    ]
+    ],
+    "globalSetup": "./jest.global-setup.js"
   },
   "private": true
 }

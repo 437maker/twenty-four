@@ -4,6 +4,7 @@
 //           treat history, owned items, weekly box, export.
 
 import { getDatabase } from './database';
+import { shiftDateString } from '../utils/dateHelpers';
 import {
   Settings, Task, NewTaskInput, Pillar, RepeatType,
   JournalEntry, StreakHistoryEntry,
@@ -563,10 +564,8 @@ export async function logStreakEnd(
 ): Promise<void> {
   if (length < 1) return; // don't log tiny streaks
   const db = await getDatabase();
-  // Compute start_date from end_date and length
-  const end   = new Date(endDate + 'T12:00:00');
-  end.setDate(end.getDate() - (length - 1));
-  const startDate = end.toISOString().split('T')[0];
+  // Compute start_date from end_date and length (local calendar days)
+  const startDate = shiftDateString(endDate, -(length - 1));
   await db.runAsync(
     'INSERT INTO streak_history (start_date, end_date, length) VALUES (?, ?, ?)',
     [startDate, endDate, length]
