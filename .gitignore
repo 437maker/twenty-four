@@ -12,7 +12,15 @@ Thumbs.db
 
 # Environment variables (secrets — never commit)
 .env
-.env.local
+.env*
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Jest coverage output
+coverage/
+
+# Local-only notes. These quote a fragment of a leaked (now-removed) GitHub
+# token and a personal email address, so they stay off GitHub.
+SECURITY_NOTICE.md
+STATUS_REPORT.md

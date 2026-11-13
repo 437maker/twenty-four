@@ -20,7 +20,17 @@
       "package": "com.personal.twentyfour"
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "REPLACE_WITH_YOUR_SENTRY_ORG_SLUG",
+          "project": "twenty-four"
+        }
+      ],
+      "expo-web-browser",
+      "expo-secure-store",
+      "@sentry/react-native"
     ]
   }
 }
