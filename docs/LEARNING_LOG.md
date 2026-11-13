@@ -169,3 +169,58 @@ comfortable touch target. The visible checkbox is still a 28pt circle; the
 how VoiceOver actually reads the screens. I confirmed the code type-checks,
 the tests pass, and the iOS bundle builds (`npx expo export --platform ios`).
 The device checks are sections 7 to 9 of `docs/MANUAL_CHECKS.md`.
+
+---
+
+## Phase 4: free iPhone install, no laptop needed
+
+**What changed.** The project is linked to EAS (`@sahil_4/twenty-four`, free
+plan) and one update is published to the `main` channel. `app.json` gained
+`updates.url`, `extra.eas.projectId`, `owner`, and a `runtimeVersion` policy.
+`eas.json` and an `npm run ship` script were added. `docs/DEPLOY.md` has the
+routine, the sources, and the upgrade path.
+
+**Why.** With `expo start`, the phone downloads the JavaScript bundle from the
+laptop, so the laptop must be on and on the same network. EAS Update puts the
+same bundle on Expo's servers instead.
+
+**Concept: an app is two parts, and only one of them can be updated over the air.**
+- The **native runtime**: compiled Swift/Objective-C/Kotlin, the JavaScript
+  engine, and every native module (SQLite, notifications, secure storage).
+  It can only change by installing a new app binary.
+- The **JavaScript bundle**: all the code in `app/`, plus images. It is just a
+  file the runtime loads at startup.
+
+Expo Go *is* a prebuilt native runtime (the one for SDK 54). `eas update`
+uploads a new JavaScript bundle. That is why this is free and needs no Apple
+account: no new binary is ever built. It is also the reason for hard rule 1.
+A library with its own native code would need a new runtime, and Expo Go's
+runtime is fixed.
+
+**Concept: the runtime version is the compatibility contract.** A bundle
+written for one runtime can crash on another (it may call a native module that
+is not there). So every update is tagged with a *runtime version*, and a
+runtime only downloads updates with a matching tag. Expo Go for SDK 54
+identifies itself as `exposdk:54.0.0`. The default policy (`appVersion`) would
+tag updates `1.0.0`, which Expo Go would ignore. The `sdkVersion` policy tags
+them `exposdk:54.0.0`.
+
+**Concept: channel vs branch.** A *branch* is a list of updates (like a git
+branch). A *channel* is a name the app asks for, and it points at a branch.
+Here both are called `main`. The indirection exists so a production app can be
+re-pointed to a different branch without rebuilding; this project does not
+need it yet.
+
+**The finding that matters.** Expo's docs say the App Store Expo Go is frozen
+at SDK 54 and that SDK 55+ on a real iPhone requires `eas go` plus an Apple
+Developer membership. The project is on SDK 54. So the usual advice ("keep
+your SDK up to date") is wrong here: upgrading would end the $0 path. Being
+able to explain *why you deliberately did not upgrade* is a better interview
+answer than having upgraded.
+
+**How it was verified.** From the laptop: the publish succeeded, and a request
+to the update server with the headers Expo Go sends (runtime `exposdk:54.0.0`,
+channel `main`, platform `ios`) returned HTTP 200 with the new update's ID.
+**Not verified:** opening it on the iPhone with the laptop closed (section 2 of
+`docs/DEPLOY.md`), and whether the app opened that way sees the same local data
+as the one opened from the laptop. Export a backup before trying.
