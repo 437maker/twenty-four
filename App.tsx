@@ -39,7 +39,7 @@ if (SENTRY_DSN) {
   });
 }
 
-// Suppress a known Expo Go + RN 0.81 dev-mode warning (harmless)
+// Suppress a known Expo Go dev-mode warning (harmless)
 LogBox.ignoreLogs(['Could not access feature flag']);
 
 import { useAppStore } from './app/store/useAppStore';

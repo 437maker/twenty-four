@@ -30,7 +30,11 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "@react-native-community/datetimepicker",
+      "expo-sharing",
+      "expo-sqlite",
+      "expo-font"
     ],
     "extra": {
       "eas": {
