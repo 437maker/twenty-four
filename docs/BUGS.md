@@ -211,6 +211,11 @@ What the docs say:
   step is "Create a new release build of your app".
   Source: https://docs.expo.dev/guides/using-sentry/
 
+> Update 2026-11-13: the SDK 58 upgrade moved Sentry to 8.28.0. The same
+> reading holds there: the native module is looked up with a non-throwing
+> `TurboModuleRegistry.get('RNSentry')` and the `isExpoGo()` guards are still
+> present. Still read, not run on a phone.
+
 What the installed code does (`@sentry/react-native` 7.2.0, read not run):
 - The SDK has an explicit `isExpoGo()` check and uses it in several places.
   `dist/js/options.js` turns off the "native SDK not available" warning when

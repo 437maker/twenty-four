@@ -122,3 +122,80 @@ while the project was on SDK 57. Finished the install with
 for that one command only and is not saved anywhere.
 
 Result: `tsc` clean, 115/115 tests, `expo-doctor` 21/21, iOS export OK.
+
+---
+
+## SDK 58
+
+Source: https://expo.dev/changelog/sdk-58
+
+Versions: React 19.2.3 → 19.3.0, React Native 0.86 → 0.88,
+`react-native-gesture-handler` 2.32 → **3.3**, `react-native-screens` 4.26 →
+4.30, `react-native-safe-area-context` 5.7 → 5.11, datetimepicker 9.1.0 →
+9.2.1, jest 29 → **30**, `@types/jest` 29 → 30.
+
+| Breaking change in the release notes | Touches this app? | What was done |
+|---|---|---|
+| `expo-file-system`: `File.write()` is now async and returns a promise | **Yes.** `exportDataToFile()` wrote the backup, then opened the share sheet straight away | `app/services/dataExport.ts` now does `await file.write(...)` (decision D10) |
+| React Native 0.87 Strict TypeScript API: some ref types became instance types | **Yes.** 6 type errors in 3 files | `useRef<ScrollView>` → `useRef<ScrollViewInstance>` in `WheelPicker.tsx` and `ScheduleScreen.tsx`; `null` → `undefined` for an empty `ListHeaderComponent` in `ShopScreen.tsx` (decision D11). Types only, no runtime change |
+| React Native removed `InteractionManager`, the `Touchable` root export, `NativeMethods`, the `Modal` `animated` prop, and three `StatusBar` props | No. Searched `App.tsx` and `app/`: none are used. Also searched the exported JS bundle: the only matches are Sentry's and gesture-handler's own internal names, not React Native's | Nothing |
+| `ImageBackground` deprecated | No, not used | Nothing |
+| `expo-notifications`: foreground notifications show by default unless `setNotificationHandler` says otherwise | No. `app/utils/notifications.ts` already sets a handler (banner and list on, sound and badge off), so the app's choice still wins | Nothing |
+| `expo-sqlite`: libSQL support removed | No. The app uses plain local SQLite (`openDatabaseAsync`, `execAsync`, `runAsync`, `getFirstAsync`, `getAllAsync`, `withTransactionAsync`) | Test harness `test-utils/realSqlite.ts` still mirrors those six methods. Unchanged |
+| iOS scene life cycle, Android R8, `NODE_ENV` handling, `expo login` in the browser | No. These affect native builds or the CLI, not an Expo Go project | Nothing |
+| `expo-router`, `@expo/ui`, `expo-localization`, `expo-media-library`, `expo-location` changes | No, none are installed | Nothing |
+| "The new Expo Go supports only SDK 58" | **This is the reason for the run** | Project is now on SDK 58 |
+
+Other changes in this step:
+- The Sentry exclude from decision D6 was removed. `expo install --check`
+  now validates `@sentry/react-native@~8.28.0` like every other package.
+- `expo install` added the `@react-native-community/datetimepicker` plugin
+  entry back to `app.json`. Version 9.2.1's plugin loads correctly, so it
+  stays (this closes decision D7).
+- `react-native-gesture-handler` 3 is a major version. The app uses exactly
+  one thing from it, `GestureHandlerRootView` in `App.tsx`, which still exists.
+- jest 30 ran the existing suite without config changes.
+
+Result: `tsc` clean, 115/115 tests (6 `test.failing` bug tests still marked
+`test.failing`), `expo-doctor` 20/20, `expo install --check` "Dependencies are
+up to date", iOS export OK, `expo config` reports `sdkVersion 58.0.0` with
+`runtimeVersion: { policy: "sdkVersion" }`.
+
+---
+
+## Runtime dependencies and Expo Go (SDK 58)
+
+Checked 2026-11-13 against the SDK 58 reference pages. "Label" means the page
+shows the "Included in Expo Go" badge.
+
+| Package | Installed | In Expo Go? | Source |
+|---|---|---|---|
+| `expo-sqlite` | ~58.0.17 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/sqlite/ |
+| `expo-file-system` | ~58.0.13 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/filesystem/ |
+| `expo-sharing` | ~58.0.23 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/sharing/ |
+| `expo-secure-store` | ~58.0.3 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/securestore/ |
+| `expo-auth-session` | ~58.0.18 | Yes, label (Google sign-in still blocked, see V1 in `BUGS.md`) | https://docs.expo.dev/versions/v58.0.0/sdk/auth-session/ |
+| `expo-web-browser` | ~58.0.8 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/webbrowser/ |
+| `expo-updates` | ~58.0.22 | Yes, label. "most of the Updates API is unavailable when running in Expo Go"; the app calls none of it | https://docs.expo.dev/versions/v58.0.0/sdk/updates/ |
+| `expo-linear-gradient` | ~58.0.4 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/linear-gradient/ |
+| `expo-status-bar` | ~58.0.5 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/status-bar/ |
+| `expo-font` | ~58.0.12 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/font/ |
+| `@react-native-community/datetimepicker` | 9.2.1 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/date-time-picker/ |
+| `react-native-gesture-handler` | ~3.3.0 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/gesture-handler/ |
+| `react-native-screens` | ~4.30.1 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/screens/ |
+| `react-native-safe-area-context` | ~5.11.1 | Yes, label | https://docs.expo.dev/versions/v58.0.0/sdk/safe-area-context/ |
+| `expo-notifications` | ~58.1.9 | **No label on the page.** It says "Local notifications (in-app notifications) remain available in Expo Go", and local notifications are all this app uses | https://docs.expo.dev/versions/v58.0.0/sdk/notifications/ |
+| `@sentry/react-native` | ~8.28.0 | **Not labelled, and Expo's Sentry guide does not mention Expo Go.** The JavaScript half runs without the native half: the installed code looks the native module up with a non-throwing `TurboModuleRegistry.get('RNSentry')` and has `isExpoGo()` guards. Read, not run on a phone. With no DSN set the app never calls `Sentry.init` | https://docs.expo.dev/guides/using-sentry/ |
+| `@expo/vector-icons` | ^15.0.3 | JavaScript plus font files, loaded through `expo-font`. No native code of its own | — |
+| `@react-navigation/*` 7.x, `zustand`, `date-fns`, `tslib` | — | JavaScript only. Nothing to include | — |
+| `react`, `react-native`, `expo` | 19.3.0, 0.88.1, ^58.0.0 | These *are* Expo Go's runtime for SDK 58 | https://expo.dev/changelog/sdk-58 |
+
+The two rows without a label are the reason `docs/MANUAL_CHECKS.md` starts
+with "open the app" and includes a notification check.
+
+## What could not be checked from the laptop
+
+No iPhone, no iOS simulator (Windows). Everything above is static: types,
+tests, `expo-doctor`, and a successful bundle export. Whether the app actually
+opens and behaves in Expo Go for SDK 58 is the first item in
+`docs/MANUAL_CHECKS.md`.

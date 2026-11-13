@@ -77,6 +77,8 @@ Each entry says what was decided, why, and how to reverse it.
   runs in Expo Go, so the entry did nothing.
 - **Reverse:** add `"@react-native-community/datetimepicker"` back to
   `plugins` once the library's plugin loads on the current SDK.
+- **Update, SDK 58 step:** `expo install` added the entry back with version
+  9.2.1, whose plugin loads correctly. It is in `app.json` again.
 
 ### D8. Removed the top-level `splash` block from `app.json`
 - **What:** deleted `"splash": { "resizeMode": "contain", "backgroundColor": "#3C3489" }`.
@@ -98,3 +100,54 @@ Each entry says what was decided, why, and how to reverse it.
   ignores. `tsc`, all 115 tests, and the iOS export passed. Nothing was
   published from SDK 56.
 - **Reverse:** not applicable. The check passes from SDK 57 on.
+
+### D10. `exportDataToFile()` now awaits `file.write()` (SDK 58 step)
+- **What:** one line in `app/services/dataExport.ts`:
+  `file.write(...)` became `await file.write(...)`.
+- **Why:** in SDK 58 `File.write()` returns a promise instead of writing
+  immediately. Without `await`, the share sheet could open on an empty or
+  half-written backup file. `File.writeSync()` would also work; `await` was
+  chosen because the function is already `async` and it does not block the UI.
+- **Behavior change:** none intended. The export does the same thing.
+- **Reverse:** change it to `file.writeSync(...)`. Do not go back to a bare
+  `file.write(...)`.
+
+### D11. Three type-only edits for React Native 0.88
+- **What:** `useRef<ScrollView>(null)` → `useRef<ScrollViewInstance>(null)` in
+  `app/components/WheelPicker.tsx` and `app/screens/ScheduleScreen.tsx`, and
+  the empty `ListHeaderComponent` in `app/screens/ShopScreen.tsx` is now
+  `undefined` instead of `null`.
+- **Why:** React Native's new strict types separate "the component" from "the
+  thing a ref points to", and no longer accept `null` for a list header. `tsc`
+  failed with 6 errors.
+- **Behavior change:** none. Types are erased at build time, and `FlatList`
+  treats `null` and `undefined` headers the same way (it renders nothing).
+- **Reverse:** revert those three lines (`tsc` will fail on SDK 58).
+
+### D12. The foreground notification handler was left as it is
+- **What:** no change to `app/utils/notifications.ts`.
+- **Why:** SDK 58 shows foreground notifications by default "unless
+  `setNotificationHandler` says otherwise". The app already sets a handler
+  (banner and list on, sound off, badge off), so its choice still applies.
+  The handler still passes the older `shouldShowAlert` field next to the newer
+  `shouldShowBanner` / `shouldShowList`; the SDK 58 types still accept it.
+- **Reverse:** not applicable.
+
+### D13. Deprecated but working pieces were not migrated
+- **What:** `@expo/vector-icons` (deprecated since SDK 56 in favor of
+  `@react-native-vector-icons/*`) and `@react-native-community/datetimepicker`
+  (Expo now offers a replacement in `@expo/ui`) were kept.
+- **Why:** both still work and are in Expo Go for SDK 58. Replacing them is a
+  code change with visual risk, and this run was upgrade-only.
+- **When to revisit:** when a future SDK's release notes say either one is
+  removed from Expo Go.
+
+### D14. Published without a device test
+- **What:** the SDK 58 update was published to channel `main` after static
+  checks only (types, tests, `expo-doctor`, bundle export).
+- **Why:** there is no iPhone or iOS simulator on the Windows laptop, and the
+  previous update (SDK 54) could not open on the phone at all, so publishing
+  cannot make things worse than "does not open".
+- **Reverse:** `npx eas-cli update:republish --channel main` picks an earlier
+  update, though every earlier one is SDK 54 and will not open in today's
+  Expo Go. The practical fix for a bad update is a new, fixed one.

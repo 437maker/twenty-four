@@ -23,7 +23,7 @@ npm test
 
 That should install `jest`, `jest-expo`, `@types/jest`, and `@sentry/react-native` (the new devDeps + dep I added to `package.json`), and run the tests. Expect ~55 passing assertions across 3 files.
 
-If `npm install` complains about peer dependency conflicts (Expo SDK 54 + React 19 is still picky), retry with:
+If `npm install` complains about peer dependency conflicts (Expo + React 19 can be picky), retry with:
 ```powershell
 npm install --legacy-peer-deps
 ```

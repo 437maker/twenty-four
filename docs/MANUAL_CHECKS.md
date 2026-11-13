@@ -4,6 +4,57 @@ Jest cannot see pixels, animation, the share sheet, or iOS settings. Run these
 in Expo Go on the iPhone and tick them off. Start the app with `npx expo start`
 and scan the QR code.
 
+## SDK 58 upgrade (2026-11-13): do these first
+
+The upgrade from SDK 54 to 58 was checked on the laptop only (types, tests,
+`expo-doctor`, bundle export). None of the items below could be run there.
+If one fails, write down the exact words on screen and which step it was.
+
+### 0. The app opens and the core loop works
+- [ ] Open the app from Expo Go, then add and complete a task.
+  (Expo Go → sign in as `sahil_4` → **twenty-four** → branch `main` → newest
+  update, "Upgrade to Expo SDK 58". Then Schedule → add a task → tick it.)
+- [ ] There is **no** "Project is incompatible with this version of Expo Go" screen.
+- [ ] No red error screen at launch. (This also covers Sentry, which is not on
+  Expo's "Included in Expo Go" list: if the app opens, its JS-only mode works.)
+- [ ] **Your old data is still there**: streak, treats, tasks, journal. If the
+  app starts on onboarding instead, stop and note it before entering anything.
+- [ ] Settings → Export my data right away, and save the file. This also
+  checks the one line of app logic the upgrade changed (the file write). Open
+  the saved file in Files: it must be full JSON, not empty.
+
+### 0a. Tab bar (React Navigation 6 → 7)
+- [ ] Five tabs in this order: Home, Schedule, Analytics, Journal, Shop.
+- [ ] Icons sit above the labels, the active tab is purple, and nothing is
+  clipped by the home indicator at the bottom of the screen.
+- [ ] Tapping each tab switches screens. Home's cards still jump to Schedule,
+  Analytics, and Shop.
+- [ ] The onboarding → main app change still fades (only visible after a
+  "Delete all my data", so check it the next time you do item 8).
+
+### 0b. Things that sit on upgraded native libraries
+- [ ] Schedule → tap the date at the top → the inline calendar opens, and
+  picking a day switches to it (datetimepicker 8 → 9).
+- [ ] Schedule → add a task → the hour, minute, AM/PM and duration wheels
+  scroll and snap, and tapping a value selects it (`WheelPicker`, one of the
+  files with a type-only edit).
+- [ ] Open an existing task: the "Move to" row of days starts scrolled near
+  the task's current day (the other file with a type-only edit).
+- [ ] Shop → the header gradient shows, and the Shields tab shows its info card
+  while the other tabs do not.
+- [ ] Notifications: Settings → set the evening notification time two minutes
+  ahead and save → close the app → the notification arrives. Then repeat with the app **open**:
+  a banner appears, with no sound. (Expo's notifications page has no
+  "Included in Expo Go" label; it says local notifications remain available.)
+- [ ] Status bar text (clock, battery) is readable on Home by day and by night.
+
+### 0c. Update the bookmark
+- [ ] If you saved the `exp://…runtime-version=exposdk:54.0.0` link, replace it
+  with the SDK 58 one from `docs/DEPLOY.md` section 2.
+
+Then run through items 1–9 below once. They were written for SDK 54 and every
+one of them now runs on new versions of React Native and the native libraries.
+
 ## Phase 2: home screen
 
 ### 1. Day and night

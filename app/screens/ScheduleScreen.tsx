@@ -16,6 +16,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+// React Native 0.87+ types: a ref to a ScrollView holds a ScrollViewInstance,
+// not the ScrollView component type itself.
+import type { ScrollViewInstance } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { format, addDays, subDays, parseISO } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -118,7 +121,7 @@ function MoveDayStrip({
   });
 
   // Auto-scroll so the task's current day is visible on open
-  const listRef = useRef<ScrollView>(null);
+  const listRef = useRef<ScrollViewInstance>(null);
   const taskIdx = days.findIndex((d) => d === taskDate);
 
   return (

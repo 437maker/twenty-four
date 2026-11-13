@@ -30,7 +30,8 @@
       "expo-sharing",
       "expo-sqlite",
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {

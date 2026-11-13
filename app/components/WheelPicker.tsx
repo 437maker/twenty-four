@@ -19,6 +19,9 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+// React Native 0.87+ types: a ref to a ScrollView holds a ScrollViewInstance,
+// not the ScrollView component type itself.
+import type { ScrollViewInstance } from 'react-native';
 
 // Height of one row in pixels — also the snap interval.
 const ITEM_H = 52;
@@ -39,7 +42,7 @@ interface Props {
 export default function WheelPicker({
   items, selectedIndex, onChange, width = 80, accessibilityLabel,
 }: Props) {
-  const scrollRef  = useRef<ScrollView>(null);
+  const scrollRef  = useRef<ScrollViewInstance>(null);
 
   // draggingRef  — true while the user's finger is physically touching the picker.
   // momentumRef  — true while a fling is decelerating after the finger lifts.

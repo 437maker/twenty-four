@@ -81,7 +81,9 @@ export async function exportDataToFile(): Promise<string> {
   // file whose only job is to be handed to the share sheet.
   const file = new File(Paths.cache, exportFileName());
   file.create({ overwrite: true });
-  file.write(JSON.stringify(payload, null, 2));
+  // SDK 58: File.write() returns a promise. Wait for it, or the share sheet
+  // could open before the file has its contents.
+  await file.write(JSON.stringify(payload, null, 2));
 
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device.');

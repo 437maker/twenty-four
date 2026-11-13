@@ -343,7 +343,7 @@ export default function ShopScreen() {
 
   // Optional header component for shields category
   const ListHeaderComponent =
-    activeCategory === 'shield' ? <ShieldInfoCard /> : null;
+    activeCategory === 'shield' ? <ShieldInfoCard /> : undefined;
 
   // Spacer item for FlatList when odd number of cards
   const dataWithSpacer = catalogItems.length % 2 !== 0

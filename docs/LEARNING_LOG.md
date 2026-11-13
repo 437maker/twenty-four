@@ -211,6 +211,10 @@ Here both are called `main`. The indirection exists so a production app can be
 re-pointed to a different branch without rebuilding; this project does not
 need it yet.
 
+> **Corrected on 2026-11-13.** The paragraph below turned out to be wrong: the
+> App Store Expo Go moved to SDK 58 and the SDK 54 project stopped opening. See
+> "SDK 58 upgrade" at the end of this file.
+
 **The finding that matters.** Expo's docs say the App Store Expo Go is frozen
 at SDK 54 and that SDK 55+ on a real iPhone requires `eas go` plus an Apple
 Developer membership. The project is on SDK 54. So the usual advice ("keep
@@ -276,3 +280,50 @@ this cannot.
 3. Decide the streak rule (B6): app opens or completed work.
 4. Wrap purchases and payouts in transactions (B3).
 5. Raise `utils` coverage.
+
+## SDK 58 upgrade (2026-11-13)
+
+**What changed.** The project moved from Expo SDK 54 to SDK 58, one SDK at a
+time (54 → 55 → 56 → 57 → 58), with a commit per step. React Native went from
+0.81 to 0.88, React from 19.1 to 19.3, TypeScript from 5 to 6, jest from 29 to
+30, React Navigation from 6 to 7, Sentry from 7 to 8. Five files of app code
+changed, 13 lines added, most of them comments. The full record is `docs/UPGRADE_SDK58.md`.
+
+**Why.** The Phase 4 conclusion ("stay on SDK 54, it is the last one Expo Go
+runs") was wrong. Apple approved a newer Expo Go, the App Store installed the
+SDK 58 version, and the SDK 54 project stopped opening. I had trusted a
+sentence on an Expo troubleshooting page that was, and on the day of this run
+still is, out of date.
+
+**Concept: a document is a claim; the device is the measurement.** The earlier
+entry said deliberately not upgrading was "a better interview answer than
+having upgraded". The better answer now is the true one: "I pinned the SDK on
+the strength of one doc sentence, the platform moved, the app broke, and I
+upgraded four major versions in one documented pass." Same lesson as a lab: a
+datasheet value is where you start, and the bench reading is what you report.
+
+**Concept: why one SDK at a time.** Jumping 54 → 58 directly would have
+produced every failure at once: jest types missing, two config plugins
+crashing, an `app.json` field rejected, six type errors, a changed file API.
+Stepping through meant each failure showed up alone, next to the release notes
+that explained it. It is the same reason you change one variable per
+experiment. The price was three intermediate states that were never shipped.
+
+**Concept: most of an upgrade is not in the release notes.** Of the six things
+that actually needed fixing, the release notes predicted three (`eas update
+--environment`, `File.write()` becoming async, stricter React Native types).
+The other three came only from running the checks: TypeScript 6 no longer
+auto-loading `@types/jest`, config plugins that could not find
+`@expo/config-plugins`, and the `splash` field being dropped from the schema.
+Read the notes, then trust the tools.
+
+**Concept: a type error can be a real warning.** `File.write()` changing from
+"writes now" to "returns a promise" compiled fine without `await`, because
+ignoring a promise is legal. Only the release notes caught it. The opposite
+case, `useRef<ScrollView>`, failed loudly in `tsc` but changes nothing at
+runtime. Loud is not the same as serious.
+
+**What is still unproven.** Nothing in this run touched an iPhone. Types,
+115 tests, `expo-doctor`, and a bundle export all pass, and none of them can
+see a tab bar or a share sheet. `docs/MANUAL_CHECKS.md` section 0 is the real
+test.

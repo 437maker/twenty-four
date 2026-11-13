@@ -107,7 +107,7 @@ Charts are built from plain `View`s. There is no charting library.
 
 | Layer | Technology |
 |---|---|
-| Framework | React Native 0.81.5 + Expo SDK 54 (runs in Expo Go) |
+| Framework | React Native 0.88 + Expo SDK 58 (runs in Expo Go) |
 | Language | TypeScript, strict mode |
 | Database | SQLite via `expo-sqlite`: fully local, no backend, no account |
 | State | Zustand |
@@ -164,7 +164,7 @@ npm run test:coverage
 npx tsc --noEmit
 ```
 
-The project is pinned to **Expo SDK 54** on purpose: it is the last SDK the App Store version of Expo Go runs. See [docs/DEPLOY.md](docs/DEPLOY.md) before upgrading anything.
+The project is on **Expo SDK 58**. Expo Go on iOS only runs the newest SDK, so the project has to be upgraded each time Expo Go moves on. The routine is in [docs/DEPLOY.md](docs/DEPLOY.md), and the record of the 54 → 58 upgrade is in [docs/UPGRADE_SDK58.md](docs/UPGRADE_SDK58.md).
 
 To publish an over-the-air update that opens in Expo Go without the laptop: `npm run ship -- --message "what changed"` ([docs/DEPLOY.md](docs/DEPLOY.md)).
 

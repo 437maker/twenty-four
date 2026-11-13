@@ -60,6 +60,6 @@ ones an engineer remembers.
 ## Words to say (or to put in the post)
 
 - The number, not the adjective: "115 tests", "8 failed before the fix", not "well tested".
-- Say what you chose **not** to do and why: no backend (data stays on the phone), no chart library, stayed on SDK 54 because it is the last version that runs in Expo Go for free.
+- Say what you chose **not** to do and why: no backend (data stays on the phone), no chart library, stayed inside Expo Go to keep the cost at $0, which means upgrading the Expo SDK whenever Expo Go does (54 → 58 in one documented run).
 - Be exact about what is not done. There is a public bug log (`docs/BUGS.md`) with 15 open items, three with failing-by-design tests. That is a strength: it shows you know where the edges are.
 - Do **not** claim Google Calendar sync works. The engine is written; sign-in cannot work in Expo Go. "Built a two-way sync engine; shipping it needs a native build" is true and still impressive.
