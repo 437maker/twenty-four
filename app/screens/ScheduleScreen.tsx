@@ -71,6 +71,8 @@ const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: 'custom',   label: 'Custom'   },
 ];
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+// Full names for screen readers ("Su" would be read as "soo").
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // ─── Conversion helpers ───────────────────────────────────────────────────────
 function timeToIndices(time: string) {
@@ -154,6 +156,13 @@ function MoveDayStrip({
               ]}
               onPress={() => !isCurrent && onMove(dateStr)}
               activeOpacity={isCurrent ? 1 : 0.7}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isCurrent
+                  ? `${format(d, 'EEEE, MMMM d')}, current day`
+                  : `Move to ${format(d, 'EEEE, MMMM d')}${isToday ? ', today' : ''}`
+              }
+              accessibilityState={{ selected: isCurrent, disabled: isCurrent }}
             >
               <Text style={[
                 styles.moveDayAbbr,
@@ -219,7 +228,7 @@ function DailyGoalsBanner({
 
   return (
     <View style={goalStyles.card}>
-      <Text style={goalStyles.heading}>Goal Progress</Text>
+      <Text style={goalStyles.heading} accessibilityRole="header">Goal Progress</Text>
       {pillars.map((p) => {
         const target    = targets[p] ?? 0;
         const planned   = tasks
@@ -238,7 +247,12 @@ function DailyGoalsBanner({
         const color = GOAL_PILLAR_COLORS[p];
 
         return (
-          <View key={p} style={goalStyles.row}>
+          <View
+            key={p}
+            style={goalStyles.row}
+            accessible
+            accessibilityLabel={`${GOAL_PILLAR_LABELS[p]}: ${fmt(completed)} done, ${fmt(planned)} planned, target ${fmt(target)}`.replace(/(\d)h/g, '$1 hours')}
+          >
             {/* Label row: dot + pillar name + hours */}
             <View style={goalStyles.labelRow}>
               <View style={[goalStyles.dot, { backgroundColor: color }]} />
@@ -573,14 +587,30 @@ export default function ScheduleScreen() {
     <View style={styles.container}>
       {/* Date navigation bar */}
       <View style={styles.dateBar}>
-        <TouchableOpacity style={styles.arrowBtn} onPress={() => shiftDate('prev')}>
+        <TouchableOpacity
+          style={styles.arrowBtn}
+          onPress={() => shiftDate('prev')}
+          accessibilityRole="button"
+          accessibilityLabel="Previous day"
+        >
           <Text style={styles.arrow}>‹</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.dateTouchable} onPress={() => setShowDatePicker(true)}>
+        <TouchableOpacity
+          style={styles.dateTouchable}
+          onPress={() => setShowDatePicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`${formatDisplayDate(selectedDate)}, ${format(parseISO(selectedDate), 'MMMM d, yyyy')}`}
+          accessibilityHint="Opens the date picker"
+        >
           <Text style={styles.dateLabel}>{formatDisplayDate(selectedDate)}</Text>
           <Text style={styles.dateSub}>{format(parseISO(selectedDate), 'MMMM d, yyyy')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.arrowBtn} onPress={() => shiftDate('next')}>
+        <TouchableOpacity
+          style={styles.arrowBtn}
+          onPress={() => shiftDate('next')}
+          accessibilityRole="button"
+          accessibilityLabel="Next day"
+        >
           <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
       </View>
@@ -625,7 +655,12 @@ export default function ScheduleScreen() {
         }
       />
 
-      <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+      <TouchableOpacity
+        style={styles.addBtn}
+        onPress={openAdd}
+        accessibilityRole="button"
+        accessibilityLabel="Add task"
+      >
         <Text style={styles.addBtnText}>+ Add Task</Text>
       </TouchableOpacity>
 
@@ -646,11 +681,23 @@ export default function ScheduleScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => setModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
-              <TouchableOpacity onPress={handleSave}>
+              <Text style={styles.modalTitle} accessibilityRole="header">
+                {editingTask ? 'Edit Task' : 'New Task'}
+              </Text>
+              <TouchableOpacity
+                style={[styles.headerBtn, styles.headerBtnRight]}
+                onPress={handleSave}
+                accessibilityRole="button"
+                accessibilityLabel="Save task"
+              >
                 <Text style={styles.saveText}>Save</Text>
               </TouchableOpacity>
             </View>
@@ -661,6 +708,7 @@ export default function ScheduleScreen() {
               value={formName}
               onChangeText={setFormName}
               placeholder="e.g. Morning run"
+              accessibilityLabel="Task name"
               autoFocus={!editingTask}
               returnKeyType="done"
               selectionColor="#3C3489"
@@ -675,21 +723,21 @@ export default function ScheduleScreen() {
 
             <Text style={styles.fieldLabel}>Start time</Text>
             <View style={styles.wheelRow}>
-              <WheelPicker items={HOURS}   selectedIndex={formHourIdx}  onChange={setFormHourIdx}  width={72} />
-              <Text style={styles.wheelColon}>:</Text>
-              <WheelPicker items={MINUTES} selectedIndex={formMinIdx}   onChange={setFormMinIdx}   width={72} />
-              <WheelPicker items={AMPM}    selectedIndex={formAmPmIdx}  onChange={setFormAmPmIdx}  width={72} />
+              <WheelPicker items={HOURS}   selectedIndex={formHourIdx}  onChange={setFormHourIdx}  width={72} accessibilityLabel="Start hour" />
+              <Text style={styles.wheelColon} accessible={false}>:</Text>
+              <WheelPicker items={MINUTES} selectedIndex={formMinIdx}   onChange={setFormMinIdx}   width={72} accessibilityLabel="Start minute" />
+              <WheelPicker items={AMPM}    selectedIndex={formAmPmIdx}  onChange={setFormAmPmIdx}  width={72} accessibilityLabel="AM or PM" />
             </View>
 
             <Text style={styles.fieldLabel}>Duration</Text>
             <View style={styles.wheelRow}>
-              <WheelPicker items={DURATIONS} selectedIndex={formDurIdx} onChange={setFormDurIdx} width={90} />
+              <WheelPicker items={DURATIONS} selectedIndex={formDurIdx} onChange={setFormDurIdx} width={90} accessibilityLabel="Duration" />
               <Text style={styles.wheelUnit}>hours</Text>
             </View>
 
             {/* Conflict warning */}
             {conflict && (
-              <View style={styles.conflictBanner}>
+              <View style={styles.conflictBanner} accessibilityRole="alert">
                 <Text style={styles.conflictText}>
                   ⚠️ Overlaps with "{conflict.name}" ({conflict.start_time})
                 </Text>
@@ -697,7 +745,7 @@ export default function ScheduleScreen() {
             )}
 
             <Text style={styles.fieldLabel}>Repeat</Text>
-            <View style={styles.repeatChips}>
+            <View style={styles.repeatChips} accessibilityRole="radiogroup" accessibilityLabel="Repeat">
               {REPEAT_OPTIONS.map((opt) => {
                 const active = formRepeatType === opt.value;
                 return (
@@ -705,6 +753,9 @@ export default function ScheduleScreen() {
                     key={opt.value}
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => setFormRepeatType(opt.value)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active, checked: active }}
+                    accessibilityLabel={`Repeat ${opt.label.toLowerCase()}`}
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>
                       {opt.label}
@@ -725,6 +776,9 @@ export default function ScheduleScreen() {
                         key={dow}
                         style={[styles.dayBtn, sel && styles.dayBtnActive]}
                         onPress={() => toggleDay(dow)}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: sel }}
+                        accessibilityLabel={DAY_NAMES[dow]}
                       >
                         <Text style={[styles.dayBtnText, sel && styles.dayBtnTextActive]}>
                           {label}
@@ -746,7 +800,12 @@ export default function ScheduleScreen() {
                   />
                 )}
 
-                <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={handleDelete}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete task"
+                >
                   <Text style={styles.deleteBtnText}>
                     {editingTask.master_id !== null ? 'Delete task…' : 'Delete Task'}
                   </Text>
@@ -770,7 +829,7 @@ const styles = StyleSheet.create({
   },
   arrowBtn:      { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   arrow:         { fontSize: 34, color: '#3C3489', fontWeight: '300' },
-  dateTouchable: { flex: 1, alignItems: 'center' },
+  dateTouchable: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   dateLabel:     { fontSize: 18, fontWeight: '700', color: '#1F2937' },
   dateSub:       { fontSize: 13, color: '#6B7280', marginTop: 2 },
   list:          { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 },
@@ -786,6 +845,9 @@ const styles = StyleSheet.create({
   modal:         { flex: 1, backgroundColor: '#F9FAFB' },
   modalContent:  { padding: 20, paddingTop: 0, paddingBottom: 40 },
   modalHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, marginBottom: 4 },
+  // 44×44pt minimum touch target for the text-only header buttons
+  headerBtn:      { minWidth: 44, minHeight: 44, justifyContent: 'center' },
+  headerBtnRight: { alignItems: 'flex-end' },
   cancelText:    { fontSize: 16, color: '#6B7280' },
   modalTitle:    { fontSize: 17, fontWeight: '700', color: '#1F2937' },
   saveText:      { fontSize: 16, fontWeight: '700', color: '#3C3489' },
@@ -800,13 +862,13 @@ const styles = StyleSheet.create({
   conflictBanner:{ marginTop: 14, backgroundColor: '#FEF9C3', borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: '#EAB308' },
   conflictText:  { fontSize: 13, color: '#713F12', lineHeight: 18 },
   repeatChips:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#D1D5DB', backgroundColor: '#FFFFFF' },
+  chip:          { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, borderWidth: 1.5, borderColor: '#D1D5DB', backgroundColor: '#FFFFFF' },
   chipActive:    { backgroundColor: '#3C3489', borderColor: '#3C3489' },
   chipText:      { fontSize: 13, fontWeight: '600', color: '#6B7280' },
   chipTextActive:{ color: '#FFFFFF' },
   customDaysHint:{ fontSize: 13, color: '#6B7280', marginTop: 12, marginBottom: 10 },
   dayRow:        { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
-  dayBtn:        { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#D1D5DB', alignItems: 'center', backgroundColor: '#FFFFFF' },
+  dayBtn:        { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#D1D5DB', alignItems: 'center', backgroundColor: '#FFFFFF' },
   dayBtnActive:  { backgroundColor: '#3C3489', borderColor: '#3C3489' },
   dayBtnText:    { fontSize: 12, fontWeight: '700', color: '#6B7280' },
   dayBtnTextActive: { color: '#FFFFFF' },

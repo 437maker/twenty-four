@@ -25,7 +25,7 @@ export default function PillarSelector({ selected, onChange, showCare = false }:
   const pillars = showCare ? ALL_PILLARS : ALL_PILLARS.slice(0, 3);
 
   return (
-    <View style={styles.row}>
+    <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel="Pillar">
       {pillars.map((p) => {
         const isSelected = selected === p.value;
         return (
@@ -38,6 +38,9 @@ export default function PillarSelector({ selected, onChange, showCare = false }:
                 : { borderColor: '#D1D5DB' },
             ]}
             onPress={() => onChange(p.value)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected, checked: isSelected }}
+            accessibilityLabel={p.label}
           >
             <Text style={[styles.label, isSelected && styles.labelSelected]}>
               {p.label}

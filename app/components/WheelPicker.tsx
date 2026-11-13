@@ -32,9 +32,13 @@ interface Props {
   selectedIndex: number;     // which index is currently selected
   onChange:      (index: number) => void;
   width?:        number;     // column width in pixels (default 80)
+  // What this wheel picks, read by screen readers, e.g. "Hour".
+  accessibilityLabel?: string;
 }
 
-export default function WheelPicker({ items, selectedIndex, onChange, width = 80 }: Props) {
+export default function WheelPicker({
+  items, selectedIndex, onChange, width = 80, accessibilityLabel,
+}: Props) {
   const scrollRef  = useRef<ScrollView>(null);
 
   // draggingRef  — true while the user's finger is physically touching the picker.
@@ -100,8 +104,23 @@ export default function WheelPicker({ items, selectedIndex, onChange, width = 80
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
+  // Screen readers see the whole wheel as ONE "adjustable" control (like a
+  // native picker): it announces "Hour, 9, adjustable" and the user swipes up
+  // or down to change it, instead of stepping through every row.
   return (
-    <View style={[styles.container, { width }]}>
+    <View
+      style={[styles.container, { width }]}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityValue={{ text: items[selectedIndex] }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(event) => {
+        const step = event.nativeEvent.actionName === 'increment' ? 1 : -1;
+        const next = Math.max(0, Math.min(items.length - 1, selectedIndex + step));
+        if (next !== selectedIndex) onChange(next);
+      }}
+    >
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}

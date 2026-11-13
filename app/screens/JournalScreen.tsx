@@ -243,8 +243,14 @@ export default function JournalScreen() {
         ? item.reflection_text.slice(0, 80) + '…'
         : item.reflection_text;
 
+    // Read each entry as one sentence instead of four separate fragments.
+    const spoken =
+      `${formatCardDate(item.date)}, ` +
+      `${item.is_exception_day ? 'exception day' : 'standard day'}, ` +
+      `${item.word_count} words. ${preview}`;
+
     return (
-      <View style={styles.card}>
+      <View style={styles.card} accessible accessibilityLabel={spoken}>
         {/* Row: date (left) + badge (right) */}
         <View style={styles.cardHeaderRow}>
           <Text style={styles.cardDate}>{formatCardDate(item.date)}</Text>
@@ -323,13 +329,15 @@ export default function JournalScreen() {
         ListHeaderComponent={
           <View style={styles.listHeader}>
             {/* Screen title */}
-            <Text style={styles.screenTitle}>Journal</Text>
+            <Text style={styles.screenTitle} accessibilityRole="header">Journal</Text>
 
             {/* Write / Edit button */}
             <TouchableOpacity
               style={styles.writeButton}
               onPress={openModal}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={todayEntry ? "Edit today's reflection" : "Write today's reflection"}
             >
               <Text style={styles.writeButtonText}>
                 {todayEntry ? "Edit Today's Reflection" : "Write Today's Reflection"}
@@ -362,20 +370,28 @@ export default function JournalScreen() {
           <View style={styles.modalHeader}>
             {/* Cancel — closes without saving */}
             <TouchableOpacity
+              style={styles.modalHeaderBtn}
               onPress={() => setModalVisible(false)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              accessibilityHint="Closes without saving"
             >
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
 
             {/* Title centred */}
-            <Text style={styles.modalTitle}>Today's Reflection</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">Today's Reflection</Text>
 
             {/* Save — writes to DB */}
             <TouchableOpacity
+              style={[styles.modalHeaderBtn, styles.modalHeaderBtnRight]}
               onPress={handleSave}
               disabled={saving}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Save reflection"
+              accessibilityState={{ disabled: saving, busy: saving }}
             >
               <Text style={[styles.modalSave, saving && styles.modalSaveDisabled]}>
                 {saving ? 'Saving…' : 'Save'}
@@ -413,10 +429,12 @@ export default function JournalScreen() {
             <View style={styles.exceptionSection}>
               {/* Toggle row */}
               <View style={styles.exceptionRow}>
-                <Text style={styles.exceptionLabel}>Mark as exception day</Text>
+                <Text style={styles.exceptionLabel} accessible={false}>Mark as exception day</Text>
                 <Switch
                   value={isException}
                   onValueChange={setIsException}
+                  accessibilityLabel="Mark as exception day"
+                  accessibilityHint="Pauses your targets for today"
                   trackColor={{ false: '#E5E7EB', true: '#C4B5FD' }}
                   thumbColor={isException ? '#3C3489' : '#9CA3AF'}
                 />
@@ -429,6 +447,7 @@ export default function JournalScreen() {
                   value={exceptionReason}
                   onChangeText={setExceptionReason}
                   placeholder="Holiday, Vacation, Personal Event…"
+                  accessibilityLabel="Reason for the exception day"
                   placeholderTextColor="#9CA3AF"
                   returnKeyType="done"
                   selectionColor="#3C3489"
@@ -454,6 +473,9 @@ export default function JournalScreen() {
                 style={styles.newPromptButton}
                 onPress={handleNewPrompt}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="New prompt"
+                accessibilityHint="Shows a different writing prompt"
               >
                 <Text style={styles.newPromptButtonText}>🔄 New prompt</Text>
               </TouchableOpacity>
@@ -470,6 +492,8 @@ export default function JournalScreen() {
               value={reflectionText}
               onChangeText={setReflectionText}
               placeholder="Start writing…"
+              accessibilityLabel="Your reflection"
+              accessibilityHint={promptDisplay}
               placeholderTextColor="#9CA3AF"
               multiline
               scrollEnabled           // TextInput handles its own internal scroll
@@ -485,6 +509,9 @@ export default function JournalScreen() {
               onPress={handleSave}
               disabled={saving}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Save reflection"
+              accessibilityState={{ disabled: saving, busy: saving }}
             >
               <Text style={styles.saveButtonText}>
                 {saving ? 'Saving…' : 'Save Reflection'}
@@ -669,6 +696,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
 
+  // 44×44pt minimum touch target for the text-only header buttons
+  modalHeaderBtn: {
+    minWidth:       44,
+    minHeight:      44,
+    justifyContent: 'center',
+  },
+  modalHeaderBtnRight: {
+    alignItems: 'flex-end',
+  },
+
   modalCancel: {
     fontSize:   16,
     color:      '#6B7280',
@@ -779,7 +816,10 @@ const styles = StyleSheet.create({
   },
 
   newPromptButton: {
-    alignSelf: 'flex-end', // right-aligned
+    alignSelf:      'flex-end', // right-aligned
+    minHeight:      44,         // comfortable touch target
+    minWidth:       44,
+    justifyContent: 'center',
   },
 
   newPromptButtonText: {

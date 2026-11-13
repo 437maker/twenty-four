@@ -1,5 +1,10 @@
 // TaskCard.tsx — A single row in the Schedule screen task list.
 // Sprint 2: added Care pillar colour, orange conflict dot, long-press for series.
+// Phase 3 (accessibility): the card is now two SIBLING touch targets instead of
+// a checkbox nested inside a button. VoiceOver treats a button as one element
+// and hides anything inside it, so the nested checkbox could not be reached.
+//   • body     → role "button", reads name, pillar, time, duration, status
+//   • checkbox → role "checkbox" with a checked state, 44×44pt touch area
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
@@ -39,18 +44,39 @@ export default function TaskCard({
   const color = PILLAR_COLORS[task.pillar] ?? '#6B7280';
   const label = PILLAR_LABELS[task.pillar] ?? task.pillar;
 
+  // One sentence for screen readers, e.g.
+  // "Lab report, Work, 9:00 AM, 2 hours, completed, overlaps another task"
+  const hoursWord = task.duration_hours === 1 ? 'hour' : 'hours';
+  const spoken = [
+    task.name,
+    label,
+    formatTime(task.start_time),
+    `${task.duration_hours} ${hoursWord}`,
+    task.completed ? 'completed' : 'not completed',
+    task.master_id !== null ? 'repeating' : null,
+    hasConflict ? 'overlaps another task' : null,
+  ].filter(Boolean).join(', ');
+
   return (
-    <TouchableOpacity
-      style={[styles.card, task.completed && styles.cardDone]}
-      onPress={() => onPress(task)}
-      onLongPress={onLongPress ? () => onLongPress(task) : undefined}
-      delayLongPress={500}
-      activeOpacity={0.75}
-    >
+    <View style={[styles.card, task.completed && styles.cardDone]}>
       {/* Coloured left stripe — shows which pillar this task belongs to */}
       <View style={[styles.stripe, { backgroundColor: color }]} />
 
-      {/* Main content */}
+      {/* Main content — tap to edit */}
+      <TouchableOpacity
+        style={styles.bodyTouch}
+        onPress={() => onPress(task)}
+        onLongPress={onLongPress ? () => onLongPress(task) : undefined}
+        delayLongPress={500}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={spoken}
+        accessibilityHint={
+          onLongPress && task.master_id !== null
+            ? 'Opens the task to edit. Long press for series options.'
+            : 'Opens the task to edit.'
+        }
+      >
       <View style={styles.body}>
         <View style={styles.topRow}>
           <Text
@@ -80,19 +106,28 @@ export default function TaskCard({
       {hasConflict && (
         <View style={styles.conflictDot} />
       )}
-
-      {/* Checkmark circle */}
-      <TouchableOpacity
-        style={[
-          styles.check,
-          task.completed && { backgroundColor: color, borderColor: color },
-        ]}
-        onPress={() => onToggleComplete(task.id, !task.completed)}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        {task.completed && <Text style={styles.tick}>✓</Text>}
       </TouchableOpacity>
-    </TouchableOpacity>
+
+      {/* Checkmark circle. The visible circle is 28pt; the touchable around it
+          is 44×44pt, Apple's minimum comfortable touch target. */}
+      <TouchableOpacity
+        style={styles.checkTouch}
+        onPress={() => onToggleComplete(task.id, !task.completed)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: task.completed }}
+        accessibilityLabel={`${task.name} done`}
+        accessibilityHint={task.completed ? 'Marks the task as not done' : 'Marks the task as done'}
+      >
+        <View
+          style={[
+            styles.check,
+            task.completed && { backgroundColor: color, borderColor: color },
+          ]}
+        >
+          {task.completed && <Text style={styles.tick}>✓</Text>}
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -117,6 +152,12 @@ const styles = StyleSheet.create({
   stripe: {
     width:     5,
     alignSelf: 'stretch',
+  },
+  bodyTouch: {
+    flex:          1,
+    flexDirection: 'row',
+    alignItems:    'center',
+    alignSelf:     'stretch',
   },
   body: {
     flex:            1,
@@ -167,13 +208,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F97316',
     marginRight:  8,
   },
+  checkTouch: {
+    width:          44,
+    height:         44,
+    marginRight:    6,
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
   check: {
     width:        28,
     height:       28,
     borderRadius: 14,
     borderWidth:  2,
     borderColor:  '#D1D5DB',
-    marginRight:  14,
     alignItems:   'center',
     justifyContent: 'center',
   },
