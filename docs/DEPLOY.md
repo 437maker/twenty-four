@@ -25,7 +25,8 @@ npm run ship -- --message "what changed"
 1. `cd` into the project.
 2. Type-check and run the tests. Do not publish if either fails.
 3. `npm run ship` is a shortcut for
-   `eas update --channel main --platform ios`. The message shows up in the
+   `npx eas-cli update --channel main --platform ios` (it uses `npx`, so the
+   EAS CLI does not need to be installed globally). The message shows up in the
    dashboard and in Expo Go's update list, so write what changed.
 
 Takes about two minutes. When it prints `✔ Published!` the update is live.

@@ -10,7 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "ship": "eas update --channel main --platform ios"
+    "ship": "npx --yes eas-cli update --channel main --platform ios"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
