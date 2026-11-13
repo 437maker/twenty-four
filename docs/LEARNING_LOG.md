@@ -105,3 +105,67 @@ rendering anything. The component only wires them to state.
 **Not verified by me.** Everything visual. Jest does not render pixels. The
 check list in `docs/MANUAL_CHECKS.md` (section "Phase 2") has to be run on the
 iPhone.
+
+---
+
+## Phase 3: ship-readiness that fits Expo Go
+
+**What changed.**
+- Deleted three dead placeholder screens and the unused `lottie-react-native`.
+- **Export my data:** Settings writes all 7 tables to
+  `twenty-four-backup-YYYY-MM-DD.json` and opens the share sheet
+  (`app/services/dataExport.ts`). The old button passed the JSON as share
+  *text*, which cannot be saved as a file.
+- **Delete all my data:** red button, two confirmations, one transaction
+  (`deleteAllData` in `queries.ts`, `resetAllData` in the store).
+- **Accessibility** on Schedule and Journal: every control has a role and a
+  spoken label, toggles announce their state, and small targets were raised to
+  44×44pt. `TaskCard` was restructured (see below).
+- **Tests:** 18 new (75 → 93), running on a real SQLite engine.
+- **Verified, not fixed:** Google sign-in and Sentry in Expo Go. Verdicts and
+  sources are in `docs/BUGS.md` (V1, V2).
+
+**Why.** A user must be able to take their data out and to erase it. App Store
+review requires the second, and both are what "data discipline" looks like in
+practice.
+
+**Concept 1: one list, two uses.** Export and wipe both loop over the same
+`ALL_TABLES` constant. If they each had their own list, someone would add a
+table to one and forget the other, and "delete all my data" would quietly leave
+data behind. A test compares `ALL_TABLES` with `sqlite_master` (the tables
+SQLite really has), so forgetting to register a new table fails the build.
+
+**Concept 2: a transaction is all-or-nothing.** `deleteAllData` runs its
+deletes inside `withTransactionAsync`. If the app dies half-way, SQLite rolls
+back to the state before the first delete. The test proves it: a trigger forces
+the last statement to fail, and afterwards every row is still there.
+
+**Concept 3: test against the real thing when it is cheap.** The earlier shop
+tests fake the database by matching SQL strings, so they prove the right
+statements are *issued*, not that they *work*. Node 22.5+ ships a SQLite engine
+(`node:sqlite`). `test-utils/realSqlite.ts` wraps it in the four async methods
+expo-sqlite exposes, so the tests run the app's actual schema and queries with
+no new dependency. The first time it ran, it found a real bug the mocks could
+never see: the `updated_at` migration fails on any database that already has
+tasks (B0 in `docs/BUGS.md`). It is reported, with a `test.failing` case that
+will flip the day it is fixed.
+
+**Concept 4: accessibility is structure, not decoration.** The old `TaskCard`
+was a checkbox nested inside a button. VoiceOver treats a button as a single
+element and hides its children, so a blind user could open a task but never
+tick it. The fix was structural: the body and the checkbox are now siblings,
+each with its own role (`button`, `checkbox`) and state (`checked`). Adding a
+label alone would not have helped.
+
+The wheel pickers use the `adjustable` role with increment/decrement actions,
+which is how native iOS pickers present themselves: VoiceOver says
+"Start hour, 9, adjustable" and a swipe up or down changes the value.
+
+**Why 44×44pt.** Apple's Human Interface Guidelines give 44pt as the minimum
+comfortable touch target. The visible checkbox is still a 28pt circle; the
+*touchable* area around it is 44pt.
+
+**Not verified by me.** The share sheet, the wipe-to-onboarding transition, and
+how VoiceOver actually reads the screens. I confirmed the code type-checks,
+the tests pass, and the iOS bundle builds (`npx expo export --platform ios`).
+The device checks are sections 7 to 9 of `docs/MANUAL_CHECKS.md`.
