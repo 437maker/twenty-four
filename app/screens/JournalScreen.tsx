@@ -22,7 +22,6 @@ import {
   Switch,
   Alert,
   RefreshControl,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -31,6 +30,8 @@ import { useFocusEffect } from '@react-navigation/native';
 
 // ── Store & DB ────────────────────────────────────────────────────────────────
 import { useAppStore } from '../store/useAppStore';
+import Companion from '../components/companion/Companion';
+import { useReduceMotion } from '../components/companion/useReduceMotion';
 import {
   getJournalEntry,
   saveJournalEntry,
@@ -54,8 +55,6 @@ import { JournalEntry } from '../types';
 
 // ── Nova images ───────────────────────────────────────────────────────────────
 // These are the little companion images shown in the empty-state.
-const novaHappy   = require('../../assets/images/nova-happy.png');
-const novaDefault = require('../../assets/images/nova-default.png');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tiny helper: turn "2026-05-13" → "Tuesday, May 13"
@@ -74,6 +73,7 @@ function formatCardDate(dateStr: string): string {
 // JournalScreen component — the main export used by the navigation stack.
 // ─────────────────────────────────────────────────────────────────────────────
 export default function JournalScreen() {
+  const reduceMotion = useReduceMotion(); // for the companion in the empty state
   // ── Global state (Zustand) ─────────────────────────────────────────────────
   // settings contains streak, treat_count, care_enabled, companion_name, etc.
   const settings = useAppStore((s) => s.settings);
@@ -281,7 +281,9 @@ export default function JournalScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Image source={novaDefault} style={styles.emptyNova} resizeMode="contain" />
+      <View style={styles.emptyNova}>
+        <Companion state="idle" size={100} reduceMotion={reduceMotion} interactive={false} label="Your companion" />
+      </View>
       <Text style={styles.emptyText}>
         Your reflections live here. Start writing to unlock treats and track your growth!
       </Text>

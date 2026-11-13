@@ -12,8 +12,8 @@
 //   1. Clouds         — slow, endless drift across the sky          → Cloud
 //   2. Day / night    — sky crossfades to #2D4A7A after 10pm          → YardHeader
 //   3. Yard stage     — 700ms crossfade when the house upgrades       → YardHeader
-//   4. Nova breathing — gentle idle scale loop, slower when asleep    → NovaSprite
-//   5. Nova bounce    — hop whenever Nova's state changes             → NovaSprite
+//   4. Companion      — the animated Maltese (breathing, blinking,
+//                       wagging, hopping). Lives in components/companion → NovaSprite
 //   6. Bars filling   — staggered fill each time Home comes into view → PillarBar
 //   7. Streak pulse   — pop + expanding halo when the streak goes up  → StreakBadge
 //   (kept) Treat bounce when treats increase, confetti in the milestone modal.
@@ -46,6 +46,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppStore } from '../store/useAppStore';
 import NovaCompanion from '../components/NovaCompanion';
+import Companion from '../components/companion/Companion';
+import { pickAccessory } from '../components/companion/poses';
 import SettingsScreen from './SettingsScreen';
 import { getTodayString, shiftDateString } from '../utils/dateHelpers';
 import { calculatePlanAdherence, getHoursPerPillar, weeklyBoxLabel } from '../utils/calculations';
@@ -80,13 +82,6 @@ const COLORS = {
   treatBorder: '#FBCFE8',
   treatAccent: '#BE185D',
   brand: '#3C3489',
-};
-
-const NOVA_IMAGES: Record<NovaState, any> = {
-  idle:        require('../../assets/images/nova-default.png'),
-  happy:       require('../../assets/images/nova-happy.png'),
-  sleeping:    require('../../assets/images/nova-sleep.png'),
-  celebrating: require('../../assets/images/nova-celebrate.png'),
 };
 
 const CELEBRATION_MS = 5000; // Nova celebrates in the yard for 5 seconds
@@ -309,56 +304,30 @@ function YardStageArt({ stage, night }: { stage: number; night: boolean }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ANIMATIONS 4 + 5 — Nova breathing and bounce
+// The companion in the yard — ANIMATION 4
 // ─────────────────────────────────────────────────────────────────────────────
-// Two Animated.Values drive one Animated.Image:
-//   • breathe (scale): endless loop 1.0 ↔ 1.035, eased with a sine curve so it
-//     reads as breathing, not ticking. Asleep: slower (3.2s per breath vs 1.8s).
-//   • bounceY (translateY): a fast hop up (ease-out), then a spring back down
-//     with a small overshoot, whenever Nova's state changes. Celebrating hops
-//     three times. Falling asleep doesn't hop.
-// Both are transforms, so they combine in one style on the native thread.
-function NovaSprite({ state, size, reduceMotion }: { state: NovaState; size: number; reduceMotion: boolean }) {
-  const breathe = useRef(new Animated.Value(1)).current;
-  const bounceY = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (reduceMotion) {
-      breathe.setValue(1);
-      return;
-    }
-    const half = state === 'sleeping' ? 1600 : 900;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breathe, { toValue: 1.035, duration: half, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 1, duration: half, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [state, reduceMotion, breathe]);
-
-  useOnChange(state, (_prev, next) => {
-    if (reduceMotion || next === 'sleeping') return;
-    bounceY.setValue(0);
-    const hop = Animated.sequence([
-      Animated.timing(bounceY, { toValue: -16, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.spring(bounceY, { toValue: 0, friction: 4, tension: 140, useNativeDriver: true }),
-    ]);
-    const anim = next === 'celebrating' ? Animated.loop(hop, { iterations: 3 }) : hop;
-    anim.start();
-    return () => anim.stop();
-  });
-
+// The animated Maltese from components/companion. She breathes, blinks, wags,
+// hops when happy, and curls up at night. All of that motion is driven by
+// Reanimated on the UI thread inside <Companion>; this wrapper only passes the
+// state down. Tapping her plays the tap reaction (squash, heart, haptic), and
+// stroking her head for a second makes her lean in.
+function NovaSprite({
+  state, size, reduceMotion, name, accessory,
+}: {
+  state: NovaState; size: number; reduceMotion: boolean; name: string; accessory: string | null;
+}) {
   return (
-    <Animated.Image
-      source={NOVA_IMAGES[state]}
-      resizeMode="contain"
-      accessibilityLabel={`Nova is ${state}`}
-      style={{ width: size, height: size, transform: [{ translateY: bounceY }, { scale: breathe }] }}
+    <Companion
+      state={state}
+      size={size}
+      reduceMotion={reduceMotion}
+      accessory={accessory}
+      label={`${name} is ${state}. Tap to pet.`}
+      onPress={noop}
     />
   );
 }
+function noop() {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Yard header — ANIMATIONS 2 (night crossfade) and 3 (yard stage crossfade)
@@ -368,10 +337,11 @@ function NovaSprite({ state, size, reduceMotion }: { state: NovaState; size: num
 // Yard stage: when the stage changes, the OLD yard stays drawn underneath while
 // the NEW yard fades in on top (opacity 0 → 1, 700ms). Then the old layer is removed.
 function YardHeader({
-  height, width, stage, night, novaState, balanceScore, reduceMotion, onSettings,
+  height, width, stage, night, novaState, balanceScore, reduceMotion, onSettings, companionName, accessory,
 }: {
   height: number; width: number; stage: number; night: boolean; novaState: NovaState;
   balanceScore: number; reduceMotion: boolean; onSettings: () => void;
+  companionName: string; accessory: string | null;
 }) {
   const nightOpacity = useRef(new Animated.Value(night ? 1 : 0)).current;
   useEffect(() => {
@@ -427,7 +397,7 @@ function YardHeader({
 
       {/* Nova in front of the house */}
       <View style={[styles.novaSpot, { bottom: height * 0.02 }]}>
-        <NovaSprite state={novaState} size={novaSize} reduceMotion={reduceMotion} />
+        <NovaSprite state={novaState} size={novaSize} reduceMotion={reduceMotion} name={companionName} accessory={accessory} />
       </View>
 
       {/* Compact balance score next to Nova */}
@@ -614,6 +584,7 @@ export default function HomeScreen() {
   const [celebModalVisible, setCelebModalVisible] = useState(false);
   const [boxModalVisible, setBoxModalVisible] = useState(false);
   const [yardStage, setYardStage] = useState(0);
+  const [accessory, setAccessory] = useState<string | null>(null); // shop item the companion wears
   const [celebratingInYard, setCelebratingInYard] = useState(false);
   const [playKey, setPlayKey] = useState(0); // bumps on each focus → replays bar fill
 
@@ -637,6 +608,8 @@ export default function HomeScreen() {
       return item?.category === 'house' ? Math.max(max, item.tier) : max;
     }, 0);
     setYardStage(yardStageFromHouseTier(maxHouseTier));
+    // The companion wears the newest owned item the rig can draw.
+    setAccessory(pickAccessory(owned));
     setPlayKey((k) => k + 1);
 
     // Google Calendar sync: no-op if not connected; reload today when done.
@@ -741,6 +714,8 @@ export default function HomeScreen() {
           novaState={novaState}
           balanceScore={balanceScore}
           reduceMotion={reduceMotion}
+          companionName={name}
+          accessory={accessory}
           onSettings={() => setSettingsVisible(true)}
         />
 
@@ -820,7 +795,7 @@ export default function HomeScreen() {
             <ConfettiBall key={i} {...ball} fallAnim={fallAnim} />
           ))}
           <View style={styles.celebCard}>
-            <NovaCompanion state="celebrating" name={name} size={140} />
+            <NovaCompanion state="celebrating" name={name} size={140} reduceMotion={reduceMotion} accessory={accessory} />
             <Text style={styles.celebTitle}>🎉 {milestoneStreak}-Day Streak!</Text>
             <Text style={styles.celebSubtitle}>{name} is so proud of you!</Text>
             <View style={styles.celebBonus}>
@@ -851,7 +826,7 @@ export default function HomeScreen() {
       >
         <View style={styles.celebOverlay}>
           <View style={styles.celebCard}>
-            <NovaCompanion state="happy" name={name} size={120} />
+            <NovaCompanion state="happy" name={name} size={120} reduceMotion={reduceMotion} accessory={accessory} />
             <Text style={styles.celebTitle}>{weeklyBoxLabel(pendingBoxReward?.tier ?? 'basic')}</Text>
             <Text style={styles.celebSubtitle}>Last week's adherence: {pendingBoxReward?.adherence ?? 0}%</Text>
             <Text style={styles.boxDescription}>

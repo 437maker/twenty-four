@@ -1,72 +1,39 @@
-// NovaCompanion.tsx — Displays the correct Nova image with a bounce animation
-// when her state changes. Uses React Native's built-in Animated API (not Reanimated),
-// so it works in Expo Go.
+// NovaCompanion.tsx — the companion with her name underneath, for cards and
+// modals (streak milestone, weekly box).
+//
+// Until the Maltese redesign this file showed one of four German Shepherd
+// PNGs with a bounce. It now wraps the animated <Companion>. The old PNGs are
+// still in assets/images/ for rollback (see docs/DECISIONS.md, D15).
 
-import React, { useEffect, useRef } from 'react';
-import { View, Image, Text, Animated, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
 import { NovaState } from '../types';
-
-// Map each state to its image file.
-// "require" loads the image at build time so it's always available offline.
-const IMAGES: Record<NovaState, any> = {
-  idle:        require('../../assets/images/nova-default.png'),
-  happy:       require('../../assets/images/nova-happy.png'),
-  sleeping:    require('../../assets/images/nova-sleep.png'),
-  celebrating: require('../../assets/images/nova-celebrate.png'),
-};
+import Companion from './companion/Companion';
+import { useReduceMotion } from './companion/useReduceMotion';
 
 interface Props {
   state: NovaState;
   name: string;
-  size?: number; // image width/height in pixels (default 200)
+  size?: number;              // width and height in pixels (default 200)
+  accessory?: string | null;  // shop item id she is wearing
+  reduceMotion?: boolean;     // defaults to the phone's Reduce Motion setting
 }
 
-export default function NovaCompanion({ state, name, size = 200 }: Props) {
-  // Animated.Value holds a number that React Native can animate smoothly.
-  // Starting at 1 = normal (100%) scale.
-  const scale = useRef(new Animated.Value(1)).current;
-
-  // Every time "state" changes, run a quick bounce: scale up then spring back.
-  useEffect(() => {
-    Animated.sequence([
-      // Scale up to 115% in 150ms
-      Animated.timing(scale, {
-        toValue: 1.15,
-        duration: 150,
-        useNativeDriver: true, // runs on the GPU — smoother animation
-      }),
-      // Spring back to 100% with a natural bounce feel
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 4,
-        tension: 80,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [state]);
-
-  // The sleeping image has a dark blue background baked in.
-  // We show a grass area behind Nova for all other states.
-  const isSleeping = state === 'sleeping';
-
+export default function NovaCompanion({ state, name, size = 200, accessory = null, reduceMotion }: Props) {
+  const systemReduceMotion = useReduceMotion();
   return (
     <View style={styles.wrapper}>
-      {/* Soft green "grass" pad — hidden when sleeping because the blue bg would clash */}
-      {!isSleeping && (
-        <View style={[styles.grassPad, { width: size * 0.85 }]} />
-      )}
-
-      {/* Animated.Image scales with the bounce animation */}
-      <Animated.Image
-        source={IMAGES[state]}
-        style={[
-          styles.image,
-          { width: size, height: size, transform: [{ scale }] },
-        ]}
-        resizeMode="contain"
+      {/* Not interactive: this component is shown inside React Native modals,
+          where the app's gesture root is not available. */}
+      <Companion
+        state={state}
+        size={size}
+        accessory={accessory}
+        reduceMotion={reduceMotion ?? systemReduceMotion}
+        interactive={false}
+        label={`${name} is ${state}`}
       />
-
-      {/* Companion name */}
       <Text style={styles.name}>{name}</Text>
     </View>
   );
@@ -75,17 +42,6 @@ export default function NovaCompanion({ state, name, size = 200 }: Props) {
 const styles = StyleSheet.create({
   wrapper: {
     alignItems: 'center',
-    // Position relative so the grass pad can sit behind Nova
-  },
-  grassPad: {
-    position: 'absolute',
-    bottom: 36, // sits just under Nova's feet
-    height: 28,
-    backgroundColor: 'rgba(143, 188, 143, 0.25)', // soft green, 25% opacity
-    borderRadius: 50,
-  },
-  image: {
-    // Explicit width/height set via props
   },
   name: {
     fontSize: 18,

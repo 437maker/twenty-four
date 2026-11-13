@@ -28,6 +28,7 @@ import {
 import { exportDataToFile } from '../services/dataExport';
 import { clearTokens } from '../services/googleAuth';
 import CalendarSettingsScreen from './CalendarSettingsScreen';
+import CompanionGalleryScreen from './CompanionGalleryScreen';
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 // Without Care: Default / Student / Founder
@@ -67,6 +68,7 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   const [exporting, setExporting]             = useState(false);
   const [deleting, setDeleting]               = useState(false);
   const [calendarOpen, setCalendarOpen]       = useState(false);
+  const [galleryOpen, setGalleryOpen]         = useState(false); // Companion Gallery (review screen)
 
   useEffect(() => {
     if (visible && settings) {
@@ -265,7 +267,16 @@ export default function SettingsScreen({ visible, onClose }: Props) {
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Settings</Text>
+          {/* Long-press the title to open the Companion Gallery. In a published
+              update __DEV__ is false, so this is the way in on the phone. */}
+          <TouchableOpacity
+            activeOpacity={1}
+            onLongPress={() => setGalleryOpen(true)}
+            delayLongPress={1200}
+            accessible={false}
+          >
+            <Text style={styles.title}>Settings</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleSave}>
             <Text style={styles.saveText}>Save</Text>
           </TouchableOpacity>
@@ -480,7 +491,29 @@ export default function SettingsScreen({ visible, onClose }: Props) {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* ── Developer (only when running with `npx expo start`) ── */}
+          {__DEV__ && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Developer</Text>
+              <Text style={styles.sectionSub}>
+                Review the animated companion: every state, sizes, and Reduce Motion
+              </Text>
+              <TouchableOpacity
+                style={styles.exportBtn}
+                onPress={() => setGalleryOpen(true)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Open Companion Gallery"
+              >
+                <Text style={styles.exportBtnText}>🐶 Companion Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
+
+        {/* Nested modal: the companion review screen */}
+        <CompanionGalleryScreen visible={galleryOpen} onClose={() => setGalleryOpen(false)} />
 
         {/* Nested modal for the calendar sync screen */}
         <CalendarSettingsScreen
