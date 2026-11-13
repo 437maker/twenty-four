@@ -4,6 +4,98 @@ Jest cannot see pixels, animation, the share sheet, or iOS settings. Run these
 in Expo Go on the iPhone and tick them off. Start the app with `npx expo start`
 and scan the QR code.
 
+## Maltese companion (2026-11-13)
+
+The new companion was checked on the laptop only: the drawing by looking at
+PNG renders (`docs/COMPANION.md`), the logic by tests. **Motion has never been
+seen by anyone.** These checks are the first time.
+
+This update sits on top of the SDK 58 upgrade, which has also not been
+confirmed on the phone yet. If the app does not open at all, the cause could
+be either one: note the exact error text. To go back to the SDK 58 update
+without the new dog, run on the laptop:
+`npx eas-cli update:republish --group 39a9e94e-f34c-49cb-8b6f-bf9b269c3f26`
+
+Open the published update "New Maltese companion" in Expo Go.
+
+### C0. She is there
+- [ ] Home opens with no red error screen. A white Maltese with a purple bow
+  sits on the grass in the yard, where the German Shepherd used to be.
+- [ ] She is moving: breathing, blinking now and then, tail swaying.
+- [ ] If the app shows an error naming `react-native-svg`,
+  `react-native-reanimated`, `react-native-worklets`, or `RNGestureHandler`,
+  write down the exact words and stop here.
+
+### C1. Open the Gallery
+- [ ] Home → gear → hold your finger on the word **Settings** at the top for
+  about a second. "Companion Gallery" opens. (When running from the laptop
+  with `npx expo start`, there is also a "Developer" section at the bottom of
+  Settings with a button.)
+- [ ] All four states show side by side: idle, happy, celebrating, sleeping.
+
+### C2. Smoothness (no stutter)
+- [ ] Idle: breathing is a slow, even rise and fall. No ticking or jumping.
+- [ ] Happy: the tail wags fast and the hops land with a little squash. Ears
+  and topknot trail slightly behind the head.
+- [ ] Celebrating: she jumps with a wiggle, wears a party hat, and sparkles
+  pop around her.
+- [ ] Sleeping: she lies flat with eyes closed, breathing slowly, and three
+  "z"s float up and fade.
+- [ ] Scroll the Gallery up and down while they animate. The motion stays
+  smooth and nothing freezes.
+- [ ] Drag the Size slider from 64 to 240. She stays sharp at every size, and
+  no part drifts away from the rest of her (an ear or the bow sliding off
+  would mean a pivot bug).
+
+### C3. Tap and pet
+- [ ] Tap her. She squashes and pops back, a heart floats up, the phone gives
+  a light tick, and the "Taps" number under the grid goes up by one.
+- [ ] Put a finger on her forehead and stroke side to side for a full second.
+  Her eyes close into a smile, her head leans toward your finger, and her tail
+  wags. Lift the finger: she eases back to normal.
+- [ ] Do the same on Home, in the yard. Then drag **up and down** starting on
+  her: the page still scrolls and pull-to-refresh still works.
+
+### C4. Reduce Motion
+- [ ] In the Gallery, turn on "Reduce motion". All looping stops. No
+  sparkles. She still blinks, but only about every 10 seconds. The "z"s are
+  shown but still.
+- [ ] Tap her: a heart fades in place (it does not travel) and the tick still
+  happens.
+- [ ] Turn the switch off: motion comes back.
+- [ ] Optional, the real setting: iPhone Settings → Accessibility → Motion →
+  Reduce Motion ON, then look at Home. Turn it off again afterwards.
+
+### C5. Visible on every background
+- [ ] In the Gallery, tap **Warm white**, **Day**, **Night** in turn. On each
+  one you can clearly see her outline, eyes, nose, and bow.
+- [ ] Set the size to 64 and check the same three. On warm white she should
+  be pale but clearly readable.
+- [ ] On Home by day: she stands out against the sky and grass.
+- [ ] On Home at night (after 10pm, or change the phone clock as in item 1
+  below): she is asleep, and clear against the dark sky. **Set the clock back
+  to automatic afterwards.**
+
+### C6. Moving between states
+- [ ] On Home, complete a task so she goes from idle to happy. The change
+  eases over about a third of a second. Nothing snaps.
+- [ ] Switch to another tab and back. She is still animating, and did not
+  restart with a jump.
+
+### C7. Accessories and the modals
+- [ ] In the Gallery, tap each "Wearing" chip: Party hat, Scarf, Bow tie,
+  Collar. Each appears in the right place and moves with her.
+- [ ] If you own one of those four in the Shop, she wears it on Home (the
+  newest one you bought).
+- [ ] The next streak-milestone or weekly-box pop-up shows the Maltese, not
+  the German Shepherd.
+- [ ] Journal with no entries yet (only visible on a fresh install or after
+  "Delete all my data"): the small dog there is the Maltese.
+
+### C8. Battery and heat (after a few minutes)
+- [ ] Leave Home open for two minutes. The phone does not get warm and the
+  rest of the screen (clouds, bars) still animates smoothly.
+
 ## SDK 58 upgrade (2026-11-13): do these first
 
 The upgrade from SDK 54 to 58 was checked on the laptop only (types, tests,

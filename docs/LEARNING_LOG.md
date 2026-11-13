@@ -327,3 +327,50 @@ runtime. Loud is not the same as serious.
 115 tests, `expo-doctor`, and a bundle export all pass, and none of them can
 see a tab bar or a share sheet. `docs/MANUAL_CHECKS.md` section 0 is the real
 test.
+
+## Maltese companion (2026-11-13)
+
+**What changed.** The four German Shepherd PNGs were replaced by a Maltese
+puppy drawn in code (SVG shapes) and animated with Reanimated. She breathes,
+blinks, wags, hops, celebrates, sleeps, reacts to a tap, and leans into a
+petting finger. Design and rig are described in `docs/COMPANION.md`.
+
+**Why.** A PNG can only be swapped or scaled as a whole. A character built
+from separate parts can move each part on its own, and that is what makes a
+companion feel alive.
+
+**Concept: a rig is a drawing plus pivots.** Each part (ear, tail, eyelid) is
+a shape and one point it turns around. An ear that rotates around its base
+looks like an ear; the same shape rotating around its centre looks like a
+propeller. Most of the "is this believable" work is choosing pivots.
+
+**Concept: a pose is just numbers, so it can be tested.** `poses.ts` holds 15
+numbers per state. Because the pose is data, not pixels, a unit test can say
+"sleeping has the eyelids at 1 and the tail past 40°" and a script can draw
+the same numbers to a PNG. The animation is then "ease these 15 numbers to
+those 15 numbers, and add small loops on top".
+
+**Concept: the UI thread and why "no setState per frame".** A phone draws 60
+frames a second, so each frame has about 16ms. JavaScript in a React Native
+app is often busy for longer than that (a SQLite read, a re-render). If an
+animation needed JavaScript every frame, it would stutter whenever JS was
+busy. Reanimated runs small functions called *worklets* on the UI thread
+instead, so the dog keeps breathing while the app does other work. JavaScript
+only says "start breathing"; it is not asked again.
+
+**Concept: the classic animation principles are small numbers.** Squash and
+stretch is `bodySy` going to 0.9 and back. Anticipation is a 120ms crouch
+before the hop. Follow-through is starting the ears' keyframes 80ms after the
+body's. None of it is complicated; it is the difference between "moves" and
+"is alive".
+
+**Concept: look at your own output.** The first render had a body like a
+column and ears like a rabbit's. That was obvious in one second of looking and
+invisible in the code. The eyelid bug (a sliver of eye under the closed lid)
+only showed when zoomed in. A script that turns the code into a picture was
+the most useful 100 lines of the run.
+
+**What is still unproven.** Nobody has seen her move. The renders prove the
+drawing; the tests prove the rules (Reduce Motion starts no loops, a tap fires
+`onPress` and the haptic). Smoothness on the iPhone is `docs/MANUAL_CHECKS.md`,
+section "Maltese companion".

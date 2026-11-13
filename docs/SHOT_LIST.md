@@ -27,7 +27,7 @@ Lead with the engineering, not the puppy. The puppy is why people keep watching.
 | 6 | 0:58–1:10 | Analytics. | Scroll: weekly bars, monthly grid, yearly heatmap. Tap one bar. | "Every chart is hand-built from Views. No chart library. All data is local SQLite." |
 | 7 | 1:10–1:22 | Settings. | Tap "Export my data". Share sheet opens. Save to Files, open the JSON for one second. | "Your data is yours: one tap exports every table as JSON. One more deletes everything." |
 | 8 | 1:22–1:42 | **Laptop.** The diff of `getTodayStr` (old `toISOString()` line vs new), then the terminal. | Show the red run, then the green run of `localDates.test.ts`. | "The bug I'm proudest of finding: dates were UTC. At 11:30pm in Boston the app thought it was tomorrow and reset streaks. I pinned the clock in a test, watched 8 tests fail, fixed it, watched them pass." |
-| 9 | 1:42–1:52 | Laptop terminal. | `npm test` finishing: "Tests: 115 passed". | "115 tests. The database tests run the real schema on a real SQLite engine." |
+| 9 | 1:42–1:52 | Laptop terminal. | `npm test` finishing: "Tests: 166 passed". | "166 tests. The database tests run the real schema on a real SQLite engine." |
 | 10 | 1:52–2:00 | Home at night (dark sky, Nova asleep). | Hold. | "Built with Expo, TypeScript, SQLite, Zustand. Code and write-up: github.com/437maker/twenty-four" |
 
 ## Getting the red run for shot 8
@@ -59,7 +59,7 @@ ones an engineer remembers.
 
 ## Words to say (or to put in the post)
 
-- The number, not the adjective: "115 tests", "8 failed before the fix", not "well tested".
+- The number, not the adjective: "166 tests", "8 failed before the fix", not "well tested".
 - Say what you chose **not** to do and why: no backend (data stays on the phone), no chart library, stayed inside Expo Go to keep the cost at $0, which means upgrading the Expo SDK whenever Expo Go does (54 → 58 in one documented run).
 - Be exact about what is not done. There is a public bug log (`docs/BUGS.md`) with 15 open items, three with failing-by-design tests. That is a strength: it shows you know where the edges are.
 - Do **not** claim Google Calendar sync works. The engine is written; sign-in cannot work in Expo Go. "Built a two-way sync engine; shipping it needs a native build" is true and still impressive.

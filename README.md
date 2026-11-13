@@ -10,7 +10,7 @@ Most productivity apps track tasks. **Twenty-Four** tracks *balance*.
 
 Your day is divided into four life pillars: **Work**, **Personal**, **Sleep**, and **Care** (optional). You plan your hours across those pillars, log your day, and the app shows how closely reality matched the plan. Over days, weeks, and months, patterns emerge that you can act on.
 
-Nova, a German Shepherd puppy, is the emotional anchor: streaks, treats, a shop, and a yard that upgrades as you go.
+Nova, an animated Maltese puppy drawn entirely in code ([docs/COMPANION.md](docs/COMPANION.md)), is the emotional anchor: streaks, treats, a shop, and a yard that upgrades as you go.
 
 ---
 
@@ -20,15 +20,15 @@ Every number below was measured on **2026-11-13**. The command that produces it 
 
 | What | Value | How it was measured |
 |---|---|---|
-| Automated tests | **115** in 7 files, all green | `npm test` |
-| of which assert working behavior | 112 | |
+| Automated tests | **166** in 8 files, all green | `npm test` |
+| of which assert working behavior | 163 | |
 | of which mark known, unfixed bugs | 3 (`test.failing`, see [docs/BUGS.md](docs/BUGS.md)) | `grep -rn "test.failing(" __tests__` |
 | Statement coverage, `app/db` | **68.9%** (lines 70.8%) | `npm run test:coverage` |
 | Statement coverage, `app/store` | **64.0%** (lines 66.3%) | same |
 | Statement coverage, `app/utils` | **26.7%** (lines 24.4%) | same |
 | Statement coverage, all three | 52.8% (lines 55.1%) | same |
-| App source | 12,352 lines in 31 TypeScript files (9,944 excluding blank and comment-only lines) | `git ls-files 'app/*.ts' 'app/*.tsx' App.tsx \| xargs cat \| wc -l` |
-| Test source | 1,953 lines | `cat __tests__/*.ts test-utils/*.ts \| wc -l` |
+| App source | 14,056 lines in 41 TypeScript files (11,276 excluding blank and comment-only lines) | `git ls-files 'app/*.ts' 'app/*.tsx' App.tsx \| xargs cat \| wc -l` |
+| Test source | 2,431 lines | `cat __tests__/*.ts __tests__/*.tsx test-utils/*.ts \| wc -l` |
 | SQLite tables | 7 | `ALL_TABLES` in `app/db/queries.ts`, checked against `sqlite_master` by a test |
 | Type errors | 0 (strict mode) | `npx tsc --noEmit` |
 
@@ -114,7 +114,7 @@ Charts are built from plain `View`s. There is no charting library.
 | Navigation | React Navigation (native stack + bottom tabs) |
 | Dates | date-fns |
 | Charts | Custom, `View` + `StyleSheet` |
-| Animations | React Native `Animated` API with the native driver |
+| Animations | React Native `Animated` API with the native driver; the companion uses `react-native-svg` + `react-native-reanimated` |
 | Testing | Jest + jest-expo; database tests run on a real SQLite engine (`node:sqlite`) |
 | Delivery | EAS Update to Expo Go (no native build) |
 
@@ -126,6 +126,7 @@ Charts are built from plain `View`s. There is no charting library.
 App.tsx                    # Bootstrap: migrate DB, load settings, streak check, notifications
 app/
 ├── components/            # TaskCard, WheelPicker, PillarSelector, CustomSlider, NovaCompanion
+│   └── companion/         # The animated Maltese: drawing, poses, rig (docs/COMPANION.md)
 ├── data/                  # shopCatalog.ts, journalPrompts.ts
 ├── db/
 │   ├── database.ts        # Schema and idempotent migrations
@@ -142,7 +143,7 @@ app/
 ├── store/useAppStore.ts   # Zustand store: settings, today's tasks, streak state machine
 ├── types/index.ts
 └── utils/                 # calculations.ts, dateHelpers.ts, notifications.ts
-__tests__/                 # 7 test files
+__tests__/                 # 8 test files
 test-utils/realSqlite.ts   # Real in-memory SQLite behind the expo-sqlite API
 docs/                      # HOW_IT_WORKS, BUGS, LEARNING_LOG, DEPLOY, MANUAL_CHECKS, plans/
 ```
@@ -159,7 +160,7 @@ npx expo start        # scan the QR code with the iPhone camera
 ```
 
 ```bash
-npm test              # 115 tests
+npm test              # 166 tests
 npm run test:coverage
 npx tsc --noEmit
 ```
