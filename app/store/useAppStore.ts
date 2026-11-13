@@ -13,6 +13,7 @@ import {
   logStreakEnd,
   changeTreats,
   logTreatEvent,
+  deleteAllData,
 } from '../db/queries';
 import {
   isStreakMilestone, milestoneBonus,
@@ -64,6 +65,11 @@ interface AppState {
   syncWithGoogle: () => Promise<void>;
   // True while a background sync is mid-flight, so the UI can show a hint
   isSyncing: boolean;
+
+  // Phase 3: wipe the database and put the store back to a first-launch state.
+  // App.tsx shows onboarding whenever isOnboarded is false, so this is also
+  // what sends the user back to onboarding.
+  resetAllData: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -143,6 +149,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     } finally {
       set({ isSyncing: false });
     }
+  },
+
+  resetAllData: async () => {
+    await deleteAllData();
+    const settings = await getSettings(); // the fresh default row
+    set({
+      settings,
+      isOnboarded:        false,
+      todaysTasks:        [],
+      pendingCelebration: false,
+      milestoneStreak:    0,
+      streakJustBroke:    false,
+      pendingBoxReward:   null,
+      shieldConsumed:     false,
+      isSyncing:          false,
+    });
+    // Same step App.tsx runs on a real first launch: stamps app_start_date
+    // and last_active_date so the new streak starts counting from today.
+    await get().checkStreakOnOpen();
   },
 
   refreshTreatCount: async () => {

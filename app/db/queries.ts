@@ -759,22 +759,49 @@ export async function getTasksForMonth(
   return getTasksForDates(dates);
 }
 
-export async function getAllTablesForExport(): Promise<Record<string, any[]>> {
+// Every table the app owns. Export and wipe both walk this one list, so a
+// table can't be exported but not wiped (or the reverse). A test compares this
+// list with the tables the schema actually creates, so adding a table to
+// database.ts without adding it here fails the build.
+export const ALL_TABLES = [
+  'settings',
+  'tasks',
+  'journal_entries',
+  'streak_history',
+  'treat_history',
+  'owned_items',
+  'task_tombstones',
+] as const;
+
+export type TableName = (typeof ALL_TABLES)[number];
+
+export async function getAllTablesForExport(): Promise<Record<TableName, any[]>> {
   const db = await getDatabase();
-  const [settings, tasks, journal, streaks, treatHist, owned] = await Promise.all([
-    db.getAllAsync<any>('SELECT * FROM settings'),
-    db.getAllAsync<any>('SELECT * FROM tasks'),
-    db.getAllAsync<any>('SELECT * FROM journal_entries'),
-    db.getAllAsync<any>('SELECT * FROM streak_history'),
-    db.getAllAsync<any>('SELECT * FROM treat_history'),
-    db.getAllAsync<any>('SELECT * FROM owned_items'),
-  ]);
-  return {
-    settings,
-    tasks,
-    journal_entries: journal,
-    streak_history:  streaks,
-    treat_history:   treatHist,
-    owned_items:     owned,
-  };
+  const result = {} as Record<TableName, any[]>;
+  for (const table of ALL_TABLES) {
+    // Table names come from the constant above, never from user input.
+    result[table] = await db.getAllAsync<any>(`SELECT * FROM ${table}`);
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────
+// DELETE ALL DATA
+// ─────────────────────────────────────────────────────────────
+
+// Empties every table and puts settings back to a fresh-install row.
+// Runs in one transaction: either everything is wiped or nothing is, so a
+// crash half-way can't leave treats without their ledger or tasks without
+// their settings. The schema (tables, columns, indexes) is left in place.
+export async function deleteAllData(): Promise<void> {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    for (const table of ALL_TABLES) {
+      await db.runAsync(`DELETE FROM ${table}`);
+    }
+    // Restart AUTOINCREMENT ids at 1, like a new install.
+    await db.runAsync('DELETE FROM sqlite_sequence');
+    // Settings is a single row (id = 1); recreate it with column defaults.
+    await db.runAsync('INSERT INTO settings (id) VALUES (1)');
+  });
 }

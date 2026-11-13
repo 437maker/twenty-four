@@ -1,6 +1,8 @@
 // SettingsScreen.tsx — Settings modal, opened via the gear icon on Home.
 // Sprint 2: live total "XX / 24 hrs", unstructured hours, updated presets,
 //           Notifications section, Data Export section.
+// Phase 3:  Export writes a real .json file and opens the share sheet;
+//           "Delete all my data" with a two-step confirmation.
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -13,7 +15,6 @@ import {
   TextInput,
   Switch,
   Alert,
-  Share,
   Platform,
 } from 'react-native';
 import { useAppStore } from '../store/useAppStore';
@@ -24,7 +25,8 @@ import {
   scheduleNotifications,
   cancelAllNotifications,
 } from '../utils/notifications';
-import { getAllTablesForExport } from '../db/queries';
+import { exportDataToFile } from '../services/dataExport';
+import { clearTokens } from '../services/googleAuth';
 import CalendarSettingsScreen from './CalendarSettingsScreen';
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
@@ -48,7 +50,7 @@ interface Props {
 }
 
 export default function SettingsScreen({ visible, onClose }: Props) {
-  const { settings, updateSettings } = useAppStore();
+  const { settings, updateSettings, resetAllData } = useAppStore();
 
   const [name, setName]                       = useState('');
   const [careEnabled, setCareEnabled]         = useState(false);
@@ -63,6 +65,7 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   const [eveningTime, setEveningTime]         = useState('20:00');
 
   const [exporting, setExporting]             = useState(false);
+  const [deleting, setDeleting]               = useState(false);
   const [calendarOpen, setCalendarOpen]       = useState(false);
 
   useEffect(() => {
@@ -188,28 +191,62 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   }
 
   // ── Data export ────────────────────────────────────────────────────────────────
-  // Uses React Native's built-in Share API — no extra packages needed, works in Expo Go.
+  // Writes every table to a .json file (expo-file-system) and opens the share
+  // sheet (expo-sharing) so it can be saved to Files, AirDropped, or emailed.
+  // The old version passed the JSON as share *text*, which could not be saved
+  // as a file. Both packages are included in Expo Go.
   async function handleExport() {
     if (exporting) return;
     setExporting(true);
     try {
-      const data = await getAllTablesForExport();
-      const json = JSON.stringify(data, null, 2);
-
-      await Share.share(
-        {
-          title:   `twenty-four-backup-${getTodayString()}.json`,
-          message: json,         // on iOS the share sheet lets you save/copy/AirDrop this
-        },
-        { dialogTitle: 'Export your 24 data' }
-      );
+      await exportDataToFile();
     } catch (err: any) {
-      // User dismissed the share sheet — not an error worth alerting
-      if (err?.message !== 'User did not share') {
-        Alert.alert('Export failed', String(err));
-      }
+      Alert.alert('Export failed', String(err?.message ?? err));
     } finally {
       setExporting(false);
+    }
+  }
+
+  // ── Delete all data ───────────────────────────────────────────────────────────
+  // Two confirmations, because this cannot be undone. Step 1 explains what is
+  // lost; step 2 is a second, differently worded prompt so a double-tap on the
+  // same spot can't confirm both.
+  function handleDeleteAll() {
+    if (deleting) return;
+    Alert.alert(
+      'Delete all your data?',
+      'This removes every task, journal entry, streak, treat, and shop item from this phone. It cannot be undone.\n\nExport a backup first if you want to keep anything.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', style: 'destructive', onPress: confirmDeleteAll },
+      ]
+    );
+  }
+
+  function confirmDeleteAll() {
+    Alert.alert(
+      'Are you sure?',
+      'Everything will be erased and the app will go back to setup.',
+      [
+        { text: 'Delete everything', style: 'destructive', onPress: runDeleteAll },
+        { text: 'Keep my data', style: 'cancel' },
+      ]
+    );
+  }
+
+  async function runDeleteAll() {
+    setDeleting(true);
+    try {
+      // Things that live outside SQLite. Failures here must not block the wipe.
+      try { await cancelAllNotifications(); } catch { /* nothing scheduled */ }
+      try { await clearTokens(); } catch { /* not signed in to Google */ }
+
+      onClose();             // close this modal before the navigator swaps
+      await resetAllData();  // wipes the DB; isOnboarded=false shows onboarding
+    } catch (err: any) {
+      Alert.alert('Delete failed', String(err?.message ?? err));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -413,10 +450,33 @@ export default function SettingsScreen({ visible, onClose }: Props) {
             <TouchableOpacity
               style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
               onPress={handleExport}
+              disabled={exporting}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Export my data"
+              accessibilityHint="Creates a JSON backup file and opens the share sheet"
+              accessibilityState={{ disabled: exporting, busy: exporting }}
             >
               <Text style={styles.exportBtnText}>
-                {exporting ? 'Exporting…' : '📤 Export Backup'}
+                {exporting ? 'Exporting…' : '📤 Export my data'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.sectionSub, styles.deleteSub]}>
+              Erase everything on this phone and start over. This cannot be undone.
+            </Text>
+            <TouchableOpacity
+              style={[styles.deleteBtn, deleting && styles.exportBtnDisabled]}
+              onPress={handleDeleteAll}
+              disabled={deleting}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Delete all my data"
+              accessibilityHint="Asks you to confirm twice, then erases everything and returns to setup"
+              accessibilityState={{ disabled: deleting, busy: deleting }}
+            >
+              <Text style={styles.deleteBtnText}>
+                {deleting ? 'Deleting…' : 'Delete all my data'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -547,6 +607,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#9CA3AF',
   },
   exportBtnText: {
+    color:      '#FFFFFF',
+    fontSize:   15,
+    fontWeight: '700',
+  },
+
+  // Delete all data (destructive, so red and visually separate from Export)
+  deleteSub: {
+    marginTop:    20,
+    marginBottom: 0,
+  },
+  deleteBtn: {
+    marginTop:         8,
+    minHeight:         44,
+    backgroundColor:   '#DC2626',
+    borderRadius:      12,
+    paddingVertical:   12,
+    paddingHorizontal: 20,
+    alignItems:        'center',
+    justifyContent:    'center',
+  },
+  deleteBtnText: {
     color:      '#FFFFFF',
     fontSize:   15,
     fontWeight: '700',
