@@ -224,3 +224,55 @@ channel `main`, platform `ios`) returned HTTP 200 with the new update's ID.
 **Not verified:** opening it on the iPhone with the laptop closed (section 2 of
 `docs/DEPLOY.md`), and whether the app opened that way sees the same local data
 as the one opened from the laptop. Export a backup before trying.
+
+---
+
+## Phase 5: portfolio proof
+
+**What changed.**
+- `README.md` rewritten around measured numbers, each with the command that
+  reproduces it. One false claim removed (treats are not earned by completing
+  tasks; they come from streak milestones, weekly boxes, and the journal bonus).
+  The Google Calendar section now says plainly that sign-in cannot work in Expo Go.
+- `docs/HOW_IT_WORKS.md`: four one-page explanations with code references.
+- `docs/SHOT_LIST.md`: a 2-minute recording plan.
+- `__tests__/repeatAndConflicts.test.ts`: 22 tests (93 → 115) for the repeat
+  model and conflict detection, written *before* documenting them.
+
+**The numbers (2026-11-13).** 115 tests in 7 files. Statement coverage:
+`app/db` 68.9%, `app/store` 64.0%, `app/utils` 26.7%, combined 52.8%.
+12,352 lines of app source in 31 files. 7 SQLite tables.
+
+**Why write tests before the doc.** The plan was to describe how repeat tasks
+work from reading the code. Writing the tests first turned up two behaviors the
+code reading had only hinted at: deleting one occurrence of a repeating task
+does not stick (B12), and moving one leaves a copy behind (B13). A doc written
+from reading alone would have described the feature as working.
+
+**Concept: a number is only worth quoting if someone else can reproduce it.**
+"Well tested" is an opinion. "115 tests, `npm test`" is a claim a reader can
+check in ten seconds. The README table has a "how it was measured" column for
+that reason. The same applies in a lab report: a result without the method is
+not a result.
+
+**Concept: coverage is a map of where you looked, not a grade.** 52.8% overall
+sounds mediocre, and `utils` at 26.7% is low. But the number is not evenly
+spread: the streak state machine, purchases, the date helpers that matter, the
+export and the wipe are covered, while chart-layout helpers and notification
+scheduling are not. Being able to say *which* half is covered and *why that
+half* is a stronger answer than a bigger number. The obvious next targets, in
+order of value: the analytics helpers in `calculations.ts` (pure functions,
+cheap to test), then `notifications.ts`.
+
+**Concept: `test.failing` as a bug report that cannot go stale.** Three known
+bugs (B0, B12, B13) have a test marked `test.failing`. Jest expects them to
+fail. The day someone fixes the bug, that test "fails" by passing, which forces
+them to notice and flip it to a normal test. A sentence in a document can rot;
+this cannot.
+
+**What the project still needs, honestly ranked.**
+1. Fix B0 (migration breaks databases that already have tasks). High impact, small fix.
+2. Fix B12/B13 (repeat exceptions). The model needs one small table.
+3. Decide the streak rule (B6): app opens or completed work.
+4. Wrap purchases and payouts in transactions (B3).
+5. Raise `utils` coverage.

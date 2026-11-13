@@ -121,6 +121,38 @@ Line numbers are as of the commit that added the entry.
   `app/SETUP_GOOGLE_CALENDAR.md` ("running inside Expo Go", "Expo's auth proxy").
 - **Impact:** documentation only, but it will cost time. See V1.
 
+### B12. "Delete this occurrence" on a repeating task does not stick
+- **Where:** `app/db/queries.ts`, `ensureRepeatInstances` (called by
+  `getTasksForDate`), together with `deleteTask`.
+- **Why:** an occurrence is "missing" if no row has that `master_id` and date,
+  and a missing occurrence is created on the next read. A deleted occurrence
+  looks exactly like one that was never created.
+- **Repro:** create a daily task, open tomorrow, long-press it → "Delete this
+  occurrence". The Schedule reloads the day and the task is back (as a new,
+  uncompleted row).
+- **Impact:** medium. A visible feature that does nothing. It also means an
+  occurrence you completed and then deleted returns as not completed.
+- **Proof:** `__tests__/repeatAndConflicts.test.ts`, `test.failing` B12.
+- **Fix idea:** record skipped dates (a `repeat_exceptions` table of
+  `master_id, date`, or a `deleted` flag on the instance row) and have
+  `ensureRepeatInstances` respect it.
+
+### B13. Moving one occurrence of a repeating task leaves a copy behind
+- **Where:** same mechanism as B12, with `moveTask`.
+- **Repro:** create a weekly task on Monday, open it, "Move to" Tuesday. Tuesday
+  now has the task. Go back to Monday: it has been re-created there too.
+- **Impact:** medium. "Move" behaves like "copy" for repeating tasks, which
+  inflates planned hours and lowers adherence.
+- **Proof:** `__tests__/repeatAndConflicts.test.ts`, `test.failing` B13.
+- **Fix idea:** the same exception record as B12 (moving = skip the original date).
+
+### B14. Turning repeat on while editing an existing task does nothing
+- **Where:** `app/db/queries.ts`, `updateTask` (only `createTask` sets `is_master`).
+- **Repro (read from code, not run):** create a one-off task, edit it, choose
+  Repeat → Daily, Save. `repeat_type` is updated but `is_master` stays 0, so
+  `ensureRepeatInstances` never sees it and nothing repeats.
+- **Impact:** low to medium. The form offers an option that silently has no effect.
+
 ## Verified, not fixed (Phase 3 step 5)
 
 Neither of these could be run on a phone from this session. Each verdict below
