@@ -62,3 +62,46 @@ and the bug could otherwise come back in a screen file unnoticed.
 
 **Still open.** `purchaseItem` is three separate SQL statements, not a
 transaction. See B3 in `docs/BUGS.md`.
+
+---
+
+## Phase 2: home screen redesign
+
+**What changed.** `app/screens/HomeScreen.tsx` was replaced by the redesign that
+was waiting in `_incoming/`: a compact yard (30% of the screen) with drifting
+clouds and a day/night crossfade, five yard stages driven by the best House item
+owned, a balance score next to Nova, overflow segments on the pillar bars, and
+separate colors for streak (rose), Care (amber) and treats (pink). 12 new tests
+(63 → 75) cover the three pure helpers the screen exports. The ten small
+behaviors that changed are listed in `docs/plans/phase-2.md`.
+
+**Why.** The old bars capped at 100%, so 12 hours of Work on an 8 hour target
+looked the same as 8. For an app about *balance*, overwork has to be visible.
+The balance score makes that a number: reaching a target earns 1 point, and
+every 100% over the target costs half a point (capped), averaged over the
+active pillars. Work 12/8 and Sleep 8/8 scores 88, not 100.
+
+**Concept: why `scaleX` instead of `width`.** React Native runs your JavaScript
+on one thread and draws the screen on another (the native UI thread). An
+animation can be driven from either side:
+- `useNativeDriver: false`: JavaScript computes every frame and sends it across.
+  If JS is busy (a SQLite read, a Google sync), frames arrive late and the
+  animation stutters.
+- `useNativeDriver: true`: the whole animation is handed to the native side once,
+  up front. It keeps running at 60fps even while JS is blocked.
+
+The catch: the native driver can only animate properties that do not change
+layout, which means `transform` and `opacity`. `width` changes layout (it can
+push siblings around), so it is not allowed. The bars therefore have a fixed
+width and grow by `transform: [{ scaleX }]` from 0 to 1, with
+`transformOrigin: 'left'` so they grow from the left edge instead of the middle.
+The old bar animated `width` with `useNativeDriver: false`.
+
+**Second concept: keep logic out of components.** `calculateBalanceScore`,
+`yardStageFromHouseTier` and `isNightTime` are plain functions exported from the
+screen file. They take numbers and return numbers, so they are tested without
+rendering anything. The component only wires them to state.
+
+**Not verified by me.** Everything visual. Jest does not render pixels. The
+check list in `docs/MANUAL_CHECKS.md` (section "Phase 2") has to be run on the
+iPhone.
