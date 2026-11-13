@@ -18,6 +18,28 @@ export function getTomorrowString(): string {
   return format(d, 'yyyy-MM-dd');
 }
 
+// Returns yesterday's date as "YYYY-MM-DD"
+export function getYesterdayString(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return format(d, 'yyyy-MM-dd');
+}
+
+// Returns a "YYYY-MM-DD" date string for N days ago (positive) or ahead (negative)
+export function shiftDateString(baseDate: string, days: number): string {
+  const d = new Date(baseDate + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return format(d, 'yyyy-MM-dd');
+}
+
+// Returns day-of-year number (1–365/366) — used to rotate journal prompts
+export function getDayOfYear(): number {
+  const now  = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff  = now.getTime() - start.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
 // Converts a "YYYY-MM-DD" string into a human-readable label.
 // e.g. "2024-03-15" → "Today" or "Friday, March 15"
 export function formatDisplayDate(dateString: string): string {
