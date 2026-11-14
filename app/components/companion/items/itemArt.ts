@@ -309,9 +309,10 @@ export const ITEM_ART: Record<string, ItemArt> = {
   acc_party_hat: {
     coversKnot: true,
     shapes: [
-      path('M -20 0 L 3 -42 L 22 0 Q 1 6 -20 0 Z', { fill: GOLD, stroke: GOLD_D, sw: 2 }),
-      path('M -11.5 -15 Q 0 -11 15 -15.5 L 11.5 -23.5 Q 1 -20 -7 -23.5 Z', { fill: '#3C3489' }),
-      circle(3, -40.5, 5.5, { fill: '#F28C9B', stroke: '#D96C80', sw: 1.6 }),
+      // Kept short enough that the pom-pom stays inside the drawing box.
+      path('M -20 0 L 3 -36 L 22 0 Q 1 6 -20 0 Z', { fill: GOLD, stroke: GOLD_D, sw: 2 }),
+      path('M -12 -13 Q 0 -9 15.5 -13.5 L 12 -20.5 Q 1 -17 -7.5 -20.5 Z', { fill: '#3C3489' }),
+      circle(3, -34.5, 5.5, { fill: '#F28C9B', stroke: '#D96C80', sw: 1.6 }),
     ],
   },
 

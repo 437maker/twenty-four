@@ -73,7 +73,10 @@ export function anchorTable(
   for (const state of STATES) {
     const row = {} as Record<AnchorName, Anchor>;
     for (const name of ANCHOR_NAMES) {
-      row[name] = { ...base[name], ...(overrides[state]?.[name] ?? {}) };
+      // Asleep, a held staff or wand leans away from her face instead of
+      // standing straight up across it.
+      const lean = state === 'sleeping' && name === 'frontPaw' ? { rotation: 14 } : {};
+      row[name] = { ...base[name], ...lean, ...(overrides[state]?.[name] ?? {}) };
     }
     out[state] = row;
   }
