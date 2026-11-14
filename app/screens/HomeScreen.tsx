@@ -47,7 +47,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import NovaCompanion from '../components/NovaCompanion';
 import Companion from '../components/companion/Companion';
-import { pickAccessory } from '../components/companion/poses';
+import type { Equipped } from '../components/companion/items/itemSlots';
+import { useCompanionLook } from '../components/companion/useCompanionLook';
+import RenameCompanionModal from '../components/RenameCompanionModal';
+import BreedPickerScreen from './BreedPickerScreen';
 import SettingsScreen from './SettingsScreen';
 import { getTodayString, shiftDateString } from '../utils/dateHelpers';
 import { calculatePlanAdherence, getHoursPerPillar, weeklyBoxLabel } from '../utils/calculations';
@@ -133,6 +136,20 @@ export function calculateBalanceScore(rows: { logged: number; target: number }[]
 
 // Yard stage 0–4 from the highest-tier House item owned.
 // No house = stage 0 (starter doghouse); tier 1–4 = stages 1–4; tier 5 stays 4.
+// Which house tier the yard should show. If the user picked a house with
+// "Show in yard" and still owns it, that one wins. Otherwise the best house
+// owned (0 = none).
+export function houseTierToShow(ownedItemIds: string[], shownHouse: string | null): number {
+  if (shownHouse && ownedItemIds.includes(shownHouse)) {
+    const chosen = getCatalogItem(shownHouse);
+    if (chosen?.category === 'house') return chosen.tier;
+  }
+  return ownedItemIds.reduce((max, id) => {
+    const item = getCatalogItem(id);
+    return item?.category === 'house' ? Math.max(max, item.tier) : max;
+  }, 0);
+}
+
 export function yardStageFromHouseTier(maxTier: number): number {
   return Math.max(0, Math.min(4, maxTier));
 }
@@ -309,21 +326,25 @@ function YardStageArt({ stage, night }: { stage: number; night: boolean }) {
 // The animated Maltese from components/companion. She breathes, blinks, wags,
 // hops when happy, and curls up at night. All of that motion is driven by
 // Reanimated on the UI thread inside <Companion>; this wrapper only passes the
-// state down. Tapping her plays the tap reaction (squash, heart, haptic), and
-// stroking her head for a second makes her lean in.
+// state, breed, and equipped items down. Tapping her plays the tap reaction
+// (squash, heart, haptic), stroking her head for a second makes her lean in,
+// and pressing and holding opens "Choose your dog".
 function NovaSprite({
-  state, size, reduceMotion, name, accessory,
+  state, size, reduceMotion, name, breed, equipped, onLongPress,
 }: {
-  state: NovaState; size: number; reduceMotion: boolean; name: string; accessory: string | null;
+  state: NovaState; size: number; reduceMotion: boolean; name: string;
+  breed: string; equipped: Equipped; onLongPress: () => void;
 }) {
   return (
     <Companion
       state={state}
       size={size}
       reduceMotion={reduceMotion}
-      accessory={accessory}
-      label={`${name} is ${state}. Tap to pet.`}
+      breed={breed}
+      equipped={equipped}
+      label={`${name} is ${state}. Tap to pet. Press and hold to choose a different dog.`}
       onPress={noop}
+      onLongPress={onLongPress}
     />
   );
 }
@@ -337,11 +358,11 @@ function noop() {}
 // Yard stage: when the stage changes, the OLD yard stays drawn underneath while
 // the NEW yard fades in on top (opacity 0 → 1, 700ms). Then the old layer is removed.
 function YardHeader({
-  height, width, stage, night, novaState, balanceScore, reduceMotion, onSettings, companionName, accessory,
+  height, width, stage, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog,
 }: {
   height: number; width: number; stage: number; night: boolean; novaState: NovaState;
   balanceScore: number; reduceMotion: boolean; onSettings: () => void;
-  companionName: string; accessory: string | null;
+  companionName: string; breed: string; equipped: Equipped; onLongPressDog: () => void;
 }) {
   const nightOpacity = useRef(new Animated.Value(night ? 1 : 0)).current;
   useEffect(() => {
@@ -397,7 +418,15 @@ function YardHeader({
 
       {/* Nova in front of the house */}
       <View style={[styles.novaSpot, { bottom: height * 0.02 }]}>
-        <NovaSprite state={novaState} size={novaSize} reduceMotion={reduceMotion} name={companionName} accessory={accessory} />
+        <NovaSprite
+          state={novaState}
+          size={novaSize}
+          reduceMotion={reduceMotion}
+          name={companionName}
+          breed={breed}
+          equipped={equipped}
+          onLongPress={onLongPressDog}
+        />
       </View>
 
       {/* Compact balance score next to Nova */}
@@ -584,7 +613,9 @@ export default function HomeScreen() {
   const [celebModalVisible, setCelebModalVisible] = useState(false);
   const [boxModalVisible, setBoxModalVisible] = useState(false);
   const [yardStage, setYardStage] = useState(0);
-  const [accessory, setAccessory] = useState<string | null>(null); // shop item the companion wears
+  const [renameVisible, setRenameVisible] = useState(false);       // tap the name
+  const [breedPickerVisible, setBreedPickerVisible] = useState(false); // press and hold the dog
+  const look = useCompanionLook(); // breed, equipped items, name
   const [celebratingInYard, setCelebratingInYard] = useState(false);
   const [playKey, setPlayKey] = useState(0); // bumps on each focus → replays bar fill
 
@@ -602,14 +633,10 @@ export default function HomeScreen() {
     setYesterdayAdherence(calculatePlanAdherence(yTasks));
     setTomorrowEmpty(tmrTasks.length === 0);
 
-    // Yard stage follows the best House item owned in the Shop.
-    const maxHouseTier = owned.reduce((max, o) => {
-      const item = getCatalogItem(o.item_id);
-      return item?.category === 'house' ? Math.max(max, item.tier) : max;
-    }, 0);
-    setYardStage(yardStageFromHouseTier(maxHouseTier));
-    // The companion wears the newest owned item the rig can draw.
-    setAccessory(pickAccessory(owned));
+    // Yard stage follows the house chosen in the Shop ("Show in yard"), or
+    // the best House item owned if none was chosen.
+    const shownHouse = useAppStore.getState().settings?.shown_house ?? null;
+    setYardStage(yardStageFromHouseTier(houseTierToShow(owned.map((o) => o.item_id), shownHouse)));
     setPlayKey((k) => k + 1);
 
     // Google Calendar sync: no-op if not connected; reload today when done.
@@ -715,14 +742,37 @@ export default function HomeScreen() {
           balanceScore={balanceScore}
           reduceMotion={reduceMotion}
           companionName={name}
-          accessory={accessory}
+          breed={look.breed}
+          equipped={look.equipped}
+          onLongPressDog={() => setBreedPickerVisible(true)}
           onSettings={() => setSettingsVisible(true)}
         />
 
         {/* Name + streak + yesterday's adherence */}
         <View style={styles.identityRow}>
-          <Text style={styles.novaName}>{name}</Text>
+          {/* Tap the name to rename her */}
+          <TouchableOpacity
+            style={styles.nameButton}
+            onPress={() => setRenameVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`${name}. Tap to rename.`}
+            testID="home-name"
+          >
+            <Text style={styles.novaName} numberOfLines={1}>{name}</Text>
+            <Text style={styles.nameEdit}>✎</Text>
+          </TouchableOpacity>
           <View style={styles.badges}>
+            {/* Streak Shields in stock: each one saves the streak for one missed day */}
+            {shieldsOwned > 0 && (
+              <View
+                style={styles.shieldBadge}
+                accessible
+                accessibilityLabel={`${shieldsOwned} streak ${shieldsOwned === 1 ? 'shield' : 'shields'}`}
+                testID="home-shield-badge"
+              >
+                <Text style={styles.shieldBadgeText}>🛡️ {shieldsOwned}</Text>
+              </View>
+            )}
             {streak > 0 && (
               <StreakBadge streak={streak} reduceMotion={reduceMotion} onPress={() => navigation.navigate('Analytics')} />
             )}
@@ -779,6 +829,8 @@ export default function HomeScreen() {
       </ScrollView>
 
       <SettingsScreen visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+      <RenameCompanionModal visible={renameVisible} onClose={() => setRenameVisible(false)} />
+      <BreedPickerScreen visible={breedPickerVisible} onClose={() => setBreedPickerVisible(false)} />
 
       {/* Streak milestone modal */}
       <Modal
@@ -795,7 +847,7 @@ export default function HomeScreen() {
             <ConfettiBall key={i} {...ball} fallAnim={fallAnim} />
           ))}
           <View style={styles.celebCard}>
-            <NovaCompanion state="celebrating" name={name} size={140} reduceMotion={reduceMotion} accessory={accessory} />
+            <NovaCompanion state="celebrating" name={name} size={140} reduceMotion={reduceMotion} />
             <Text style={styles.celebTitle}>🎉 {milestoneStreak}-Day Streak!</Text>
             <Text style={styles.celebSubtitle}>{name} is so proud of you!</Text>
             <View style={styles.celebBonus}>
@@ -826,7 +878,7 @@ export default function HomeScreen() {
       >
         <View style={styles.celebOverlay}>
           <View style={styles.celebCard}>
-            <NovaCompanion state="happy" name={name} size={120} reduceMotion={reduceMotion} accessory={accessory} />
+            <NovaCompanion state="happy" name={name} size={120} reduceMotion={reduceMotion} />
             <Text style={styles.celebTitle}>{weeklyBoxLabel(pendingBoxReward?.tier ?? 'basic')}</Text>
             <Text style={styles.celebSubtitle}>Last week's adherence: {pendingBoxReward?.adherence ?? 0}%</Text>
             <Text style={styles.boxDescription}>
@@ -891,7 +943,11 @@ const styles = StyleSheet.create({
 
   // Identity row
   identityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
-  novaName: { fontSize: 22, fontWeight: '800', color: COLORS.ink },
+  nameButton: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, minHeight: 44, paddingRight: 8 },
+  novaName: { fontSize: 22, fontWeight: '800', color: COLORS.ink, flexShrink: 1 },
+  nameEdit: { fontSize: 15, color: COLORS.inkSoft, marginLeft: 6 },
+  shieldBadge: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  shieldBadgeText: { color: '#1D4ED8', fontWeight: '800', fontSize: 13 },
   badges: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   streakWrap: { alignItems: 'center', justifyContent: 'center' },
   streakHalo: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 20, backgroundColor: COLORS.streak },

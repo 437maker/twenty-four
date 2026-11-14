@@ -29,6 +29,8 @@ import { exportDataToFile } from '../services/dataExport';
 import { clearTokens } from '../services/googleAuth';
 import CalendarSettingsScreen from './CalendarSettingsScreen';
 import CompanionGalleryScreen from './CompanionGalleryScreen';
+import BreedPickerScreen from './BreedPickerScreen';
+import { getBreed } from '../components/companion/breeds';
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 // Without Care: Default / Student / Founder
@@ -69,6 +71,7 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   const [deleting, setDeleting]               = useState(false);
   const [calendarOpen, setCalendarOpen]       = useState(false);
   const [galleryOpen, setGalleryOpen]         = useState(false); // Companion Gallery (review screen)
+  const [breedOpen, setBreedOpen]             = useState(false); // "Choose your dog"
 
   useEffect(() => {
     if (visible && settings) {
@@ -302,6 +305,24 @@ export default function SettingsScreen({ visible, onClose }: Props) {
             />
           </View>
 
+          {/* ── Which dog ───────────────────────────────────────── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Dog</Text>
+            <Text style={styles.sectionSub}>
+              {getBreed(settings?.breed).displayName}. Switching keeps the name and everything she is wearing.
+            </Text>
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={() => setBreedOpen(true)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Choose your dog"
+              testID="settings-choose-dog"
+            >
+              <Text style={styles.exportBtnText}>🐾 Choose your dog</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* ── Care pillar toggle ───────────────────────────────── */}
           <View style={styles.section}>
             <View style={styles.toggleRow}>
@@ -511,6 +532,9 @@ export default function SettingsScreen({ visible, onClose }: Props) {
             </View>
           )}
         </ScrollView>
+
+        {/* Nested modal: choose a breed */}
+        <BreedPickerScreen visible={breedOpen} onClose={() => setBreedOpen(false)} />
 
         {/* Nested modal: the companion review screen */}
         <CompanionGalleryScreen visible={galleryOpen} onClose={() => setGalleryOpen(false)} />

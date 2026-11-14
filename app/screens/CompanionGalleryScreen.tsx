@@ -1,20 +1,28 @@
 // CompanionGalleryScreen.tsx — a review screen for the animated companion.
 //
 // Shows all four states side by side so they can be checked on a real phone:
-// smoothness, tap and petting, Reduce Motion, size, and visibility on each of
-// the app's backgrounds. Opened from Settings (a "Developer" row when running
+// smoothness, tap and petting, Reduce Motion, size, visibility on each of the
+// app's backgrounds, every breed, and the "max outfit" (one item in every
+// slot, the heaviest thing the rig can be asked to draw). Opened from Settings (a "Developer" row when running
 // with `npx expo start`, or a long-press on the "Settings" title in a
 // published update).
 //
-// It reads and writes nothing: no database, no store.
+// The breed and outfit chosen here are only a preview: nothing is saved. The
+// one thing this screen can change is her name (the Rename button).
 
 import React, { useState } from 'react';
+import { runOnJS, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 import {
   Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import Companion from '../components/companion/Companion';
+import { BREEDS } from '../components/companion/breeds';
+import { MAX_OUTFIT } from '../components/companion/items/itemSlots';
+import type { Equipped } from '../components/companion/items/itemSlots';
+import { useCompanionLook } from '../components/companion/useCompanionLook';
+import RenameCompanionModal from '../components/RenameCompanionModal';
 import { BACKDROPS } from '../components/companion/palette';
 import type { BackdropName } from '../components/companion/palette';
 import { useReduceMotion } from '../components/companion/useReduceMotion';
@@ -29,13 +37,38 @@ const BACKDROP_CHOICES: { key: BackdropName; label: string }[] = [
   { key: 'night', label: 'Night' },
 ];
 
-const ACCESSORY_CHOICES: { id: string | null; label: string }[] = [
-  { id: null, label: 'None' },
-  { id: 'acc_party_hat', label: 'Party hat' },
-  { id: 'outfit_cozy_sweater', label: 'Scarf' },
-  { id: 'acc_bow_tie', label: 'Bow tie' },
-  { id: 'acc_golden_collar', label: 'Collar' },
+type OutfitChoice = 'mine' | 'none' | 'max';
+const OUTFIT_CHOICES: { key: OutfitChoice; label: string }[] = [
+  { key: 'mine', label: 'What she wears now' },
+  { key: 'none', label: 'Nothing' },
+  { key: 'max', label: 'Max outfit' },
 ];
+const NOTHING: Equipped = {};
+
+// Frames per second on the UI thread (the thread the dogs animate on),
+// averaged over half a second. Development builds only: it is how to tell
+// whether a fully dressed dog still animates smoothly.
+function FrameCounter() {
+  const [fps, setFps] = useState(0);
+  const frames = useSharedValue(0);
+  const since = useSharedValue(0);
+  useFrameCallback((info) => {
+    'worklet';
+    frames.value += 1;
+    const elapsed = info.timestamp - since.value;
+    if (elapsed >= 500) {
+      runOnJS(setFps)(Math.round((frames.value * 1000) / elapsed));
+      frames.value = 0;
+      since.value = info.timestamp;
+    }
+  });
+  const color = fps >= 55 ? '#15803D' : fps >= 45 ? '#B45309' : '#B91C1C';
+  return (
+    <Text style={[styles.fps, { color }]} testID="gallery-fps">
+      {fps} frames per second (60 is smooth)
+    </Text>
+  );
+}
 
 const MIN_SIZE = 64;
 const MAX_SIZE = 240;
@@ -53,7 +86,11 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
 
   const [size, setSize] = useState(140);
   const [backdrop, setBackdrop] = useState<BackdropName>('day');
-  const [accessory, setAccessory] = useState<string | null>(null);
+  const look = useCompanionLook();
+  const [breed, setBreed] = useState<string>(look.breed);
+  const [outfit, setOutfit] = useState<OutfitChoice>('mine');
+  const [renameVisible, setRenameVisible] = useState(false);
+  const equipped = outfit === 'max' ? MAX_OUTFIT : outfit === 'none' ? NOTHING : look.equipped;
   const [taps, setTaps] = useState(0);
   const { width } = useWindowDimensions();
 
@@ -81,9 +118,10 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
                   testID={`gallery-companion-${state}`}
                   state={state}
                   size={size}
-                  accessory={accessory}
+                  breed={breed}
+                  equipped={equipped}
                   reduceMotion={reduceMotion}
-                  label={`Companion, ${state}`}
+                  label={`${look.name}, ${state}`}
                   onPress={() => setTaps((n) => n + 1)}
                 />
                 <Text style={[styles.tileLabel, backdrop === 'night' && styles.tileLabelNight]}>{state}</Text>
@@ -94,6 +132,32 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
           <Text style={styles.hint}>
             Tap her for a heart and a tick. Stroke sideways across her head for one second to pet her. Taps: {taps}
           </Text>
+          {__DEV__ && <FrameCounter />}
+
+          <View style={styles.row}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>{look.name}</Text>
+              <Text style={styles.rowSub}>Her name. You can also tap it on Home.</Text>
+            </View>
+            <TouchableOpacity
+              testID="gallery-rename"
+              style={styles.renameBtn}
+              onPress={() => setRenameVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Rename"
+            >
+              <Text style={styles.renameText}>Rename</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.block}>
+            <Text style={styles.rowTitle}>Dog</Text>
+            <View style={styles.chips}>
+              {BREEDS.map((b) => (
+                <Chip key={b.id} label={b.displayName} selected={breed === b.id} onPress={() => setBreed(b.id)} />
+              ))}
+            </View>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.rowText}>
@@ -126,12 +190,16 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
           <View style={styles.block}>
             <Text style={styles.rowTitle}>Wearing</Text>
             <View style={styles.chips}>
-              {ACCESSORY_CHOICES.map((a) => (
-                <Chip key={a.label} label={a.label} selected={accessory === a.id} onPress={() => setAccessory(a.id)} />
+              {OUTFIT_CHOICES.map((c) => (
+                <Chip key={c.key} label={c.label} selected={outfit === c.key} onPress={() => setOutfit(c.key)} />
               ))}
             </View>
+            <Text style={styles.rowSub}>
+              "Max outfit" puts one item in every slot. If the frame counter stays near 60 with it on, everything lighter will too.
+            </Text>
           </View>
         </ScrollView>
+        <RenameCompanionModal visible={renameVisible} onClose={() => setRenameVisible(false)} />
       </GestureHandlerRootView>
     </Modal>
   );
@@ -170,6 +238,9 @@ const styles = StyleSheet.create({
   tileLabelNight: { color: '#FFFFFF' },
 
   hint: { marginTop: 14, marginBottom: 6, fontSize: 13, lineHeight: 19, color: '#6B7280' },
+  fps: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  renameBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: '#EEF2FF', justifyContent: 'center' },
+  renameText: { fontSize: 14, fontWeight: '700', color: '#3C3489' },
 
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

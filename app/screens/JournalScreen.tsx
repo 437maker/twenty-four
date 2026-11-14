@@ -32,6 +32,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../store/useAppStore';
 import Companion from '../components/companion/Companion';
 import { useReduceMotion } from '../components/companion/useReduceMotion';
+import { useCompanionLook } from '../components/companion/useCompanionLook';
 import {
   getJournalEntry,
   saveJournalEntry,
@@ -74,6 +75,7 @@ function formatCardDate(dateStr: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function JournalScreen() {
   const reduceMotion = useReduceMotion(); // for the companion in the empty state
+  const look = useCompanionLook();
   // ── Global state (Zustand) ─────────────────────────────────────────────────
   // settings contains streak, treat_count, care_enabled, companion_name, etc.
   const settings = useAppStore((s) => s.settings);
@@ -282,7 +284,7 @@ export default function JournalScreen() {
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyNova}>
-        <Companion state="idle" size={100} reduceMotion={reduceMotion} interactive={false} label="Your companion" />
+        <Companion state="idle" size={100} breed={look.breed} equipped={look.equipped} reduceMotion={reduceMotion} interactive={false} label={look.name} />
       </View>
       <Text style={styles.emptyText}>
         Your reflections live here. Start writing to unlock treats and track your growth!
