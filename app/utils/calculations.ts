@@ -120,6 +120,9 @@ export function weeklyBoxTier(adherence: number): 'gold' | 'silver' | 'basic' {
   return 'basic';
 }
 
+// The treats each box used to pay directly. Since the houses run the box is a
+// chest (see data/chestLoot.ts); the treats inside each chest AVERAGE these
+// amounts, and a test keeps the two in step.
 export function weeklyBoxReward(tier: 'gold' | 'silver' | 'basic'): number {
   if (tier === 'gold')   return 20;
   if (tier === 'silver') return 12;
@@ -127,9 +130,9 @@ export function weeklyBoxReward(tier: 'gold' | 'silver' | 'basic'): number {
 }
 
 export function weeklyBoxLabel(tier: 'gold' | 'silver' | 'basic'): string {
-  if (tier === 'gold')   return '🥇 Gold Box';
-  if (tier === 'silver') return '🥈 Silver Box';
-  return '📦 Basic Box';
+  if (tier === 'gold')   return '🥇 Gold Chest';
+  if (tier === 'silver') return '🥈 Silver Chest';
+  return '📦 Wooden Chest';
 }
 
 // ─── Analytics helpers ────────────────────────────────────────────────────────

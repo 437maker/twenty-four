@@ -5,6 +5,8 @@
 
 import { getDatabase } from './database';
 import { getCatalogItem } from '../data/shopCatalog';
+import { CHESTS, SHIELD_ID, isChestTier, rollChest } from '../data/chestLoot';
+import type { ChestRoll, ChestTier } from '../data/chestLoot';
 import { isBreedAvailable } from '../components/companion/breeds';
 import { SLOTS, parseEquipped, slotForItem, withItem, withoutSlot } from '../components/companion/items/itemSlots';
 import type { Equipped, Slot } from '../components/companion/items/itemSlots';
@@ -61,6 +63,11 @@ export async function getSettings(): Promise<Settings | null> {
     equipped_items:               row.equipped_items ?? '{}',
     breed:                        row.breed ?? 'maltese',
     shown_house:                  row.shown_house ?? null,
+    // Chests
+    chests_wooden:                row.chests_wooden ?? 0,
+    chests_silver:                row.chests_silver ?? 0,
+    chests_gold:                  row.chests_gold ?? 0,
+    chest_pity:                   row.chest_pity ?? 0,
   };
 }
 
@@ -710,6 +717,123 @@ export async function purchaseShield(price: number): Promise<boolean> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CHESTS
+// ─────────────────────────────────────────────────────────────
+// Unopened chests are three counters on the settings row. What a chest holds
+// is decided by data/chestLoot.ts; this section only stores and applies it.
+
+// The settings column that counts each tier. Fixed strings, never user input.
+const CHEST_COLUMN: Record<ChestTier, 'chests_wooden' | 'chests_silver' | 'chests_gold'> = {
+  wooden: 'chests_wooden',
+  silver: 'chests_silver',
+  gold:   'chests_gold',
+};
+
+export async function getChestCounts(): Promise<Record<ChestTier, number>> {
+  const db  = await getDatabase();
+  const row = await db.getFirstAsync<any>(
+    'SELECT chests_wooden, chests_silver, chests_gold FROM settings WHERE id = 1'
+  );
+  return {
+    wooden: row?.chests_wooden ?? 0,
+    silver: row?.chests_silver ?? 0,
+    gold:   row?.chests_gold ?? 0,
+  };
+}
+
+// Add one earned chest (the weekly box). Costs nothing.
+export async function grantChest(tier: ChestTier): Promise<void> {
+  if (!isChestTier(tier)) return;
+  const db  = await getDatabase();
+  const col = CHEST_COLUMN[tier];
+  await db.runAsync(`UPDATE settings SET ${col} = ${col} + 1 WHERE id = 1`);
+}
+
+// Buy a chest with treats. One transaction: the check, the deduction, the
+// chest, and the ledger row all happen, or none does. Returns false (and
+// charges nothing) if there are not enough treats.
+export async function purchaseChest(tier: ChestTier): Promise<boolean> {
+  if (!isChestTier(tier)) return false;
+  const db    = await getDatabase();
+  const def   = CHESTS[tier];
+  const col   = CHEST_COLUMN[tier];
+  let bought  = false;
+  await db.withTransactionAsync(async () => {
+    const row = await db.getFirstAsync<{ treat_count: number }>(
+      'SELECT treat_count FROM settings WHERE id = 1'
+    );
+    if (!row || row.treat_count < def.price) return;
+    await db.runAsync(
+      `UPDATE settings SET treat_count = treat_count - ?, ${col} = ${col} + 1 WHERE id = 1`,
+      [def.price]
+    );
+    await logTreatEvent('chest_purchase', -def.price, `Bought: ${def.name}`);
+    bought = true;
+  });
+  return bought;
+}
+
+// Open one chest of a tier. One transaction: the chest is removed, the
+// treats and the item (or shield, or duplicate refund) are granted, the pity
+// counter is updated, and the opening is recorded. If any step fails,
+// nothing is kept and the chest is still there to open.
+//
+// Returns what was inside, or null if there is no chest of that tier.
+// `rng` is the random source (0 ≤ n < 1); tests pass a seeded one.
+export async function openChest(
+  tier: ChestTier,
+  rng: () => number = Math.random
+): Promise<ChestRoll | null> {
+  if (!isChestTier(tier)) return null;
+  const db  = await getDatabase();
+  const col = CHEST_COLUMN[tier];
+  let result: ChestRoll | null = null;
+
+  await db.withTransactionAsync(async () => {
+    const row = await db.getFirstAsync<any>(
+      `SELECT ${col} AS chests, chest_pity FROM settings WHERE id = 1`
+    );
+    if (!row || (row.chests ?? 0) < 1) return;
+
+    const ownedRows = await db.getAllAsync<{ item_id: string }>('SELECT item_id FROM owned_items');
+    const roll = rollChest(
+      tier,
+      { owned: new Set(ownedRows.map((r) => r.item_id)), pity: row.chest_pity ?? 0 },
+      rng
+    );
+    const item        = roll.item;
+    const gotShield   = item?.id === SHIELD_ID ? 1 : 0;
+
+    await db.runAsync(
+      `UPDATE settings
+          SET ${col} = ${col} - 1,
+              chest_pity = ?,
+              treat_count = treat_count + ?,
+              shields_owned = shields_owned + ?
+        WHERE id = 1`,
+      [roll.pityAfter, roll.totalBones, gotShield]
+    );
+    if (item && !item.duplicate && !gotShield) {
+      await db.runAsync('INSERT INTO owned_items (item_id) VALUES (?)', [item.id]);
+    }
+    await db.runAsync(
+      `INSERT INTO chest_openings (tier, bones, item_id, duplicate, refund, pity_used)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [tier, roll.bones, item?.id ?? null, item?.duplicate ? 1 : 0, item?.refund ?? 0, roll.pityUsed ? 1 : 0]
+    );
+    const what = !item
+      ? ''
+      : item.duplicate
+        ? ` + duplicate ${item.name} (${item.refund} treats)`
+        : ` + ${item.name}`;
+    await logTreatEvent('chest_open', roll.totalBones, `Opened: ${CHESTS[tier].name}${what}`);
+    result = roll;
+  });
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────
 // WARDROBE (what the companion wears, which breed, which house)
 // ─────────────────────────────────────────────────────────────
 // The rules live here, next to the data, so no screen can skip them:
@@ -867,6 +991,7 @@ export const ALL_TABLES = [
   'treat_history',
   'owned_items',
   'task_tombstones',
+  'chest_openings',
 ] as const;
 
 export type TableName = (typeof ALL_TABLES)[number];

@@ -21,6 +21,7 @@ const mockGetTasksForDates = jest.fn();
 const mockLogStreakEnd = jest.fn();
 const mockChangeTreats = jest.fn();
 const mockLogTreatEvent = jest.fn();
+const mockGrantChest = jest.fn();
 
 jest.mock('../app/db/queries', () => ({
   getSettings: (...args: any[]) => mockGetSettings(...args),
@@ -30,6 +31,7 @@ jest.mock('../app/db/queries', () => ({
   logStreakEnd: (...args: any[]) => mockLogStreakEnd(...args),
   changeTreats: (...args: any[]) => mockChangeTreats(...args),
   logTreatEvent: (...args: any[]) => mockLogTreatEvent(...args),
+  grantChest: (...args: any[]) => mockGrantChest(...args),
 }));
 
 import { useAppStore } from '../app/store/useAppStore';
@@ -73,6 +75,10 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     equipped_items: '{}',
     breed: 'maltese',
     shown_house: null,
+    chests_wooden: 0,
+    chests_silver: 0,
+    chests_gold: 0,
+    chest_pity: 0,
     ...overrides,
   };
 }
@@ -91,6 +97,7 @@ beforeEach(() => {
   mockLogStreakEnd.mockResolvedValue(undefined);
   mockChangeTreats.mockResolvedValue(undefined);
   mockLogTreatEvent.mockResolvedValue(undefined);
+  mockGrantChest.mockResolvedValue(undefined);
   useAppStore.setState({
     settings: null,
     isOnboarded: false,
@@ -253,6 +260,7 @@ describe('weekly box at 11:30pm local', () => {
     await useAppStore.getState().checkStreakOnOpen();
 
     expect(mockChangeTreats).not.toHaveBeenCalled();
+    expect(mockGrantChest).not.toHaveBeenCalled();
     expect(useAppStore.getState().pendingBoxReward).toBeNull();
   });
 });

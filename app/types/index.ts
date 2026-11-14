@@ -72,6 +72,11 @@ export interface Settings {
   equipped_items: string;        // JSON map from slot to item id, e.g. {"head":"acc_party_hat"}
   breed:          string;        // which dog is shown, e.g. "maltese"
   shown_house:    string | null; // the owned house item shown in the yard (null = best owned)
+  // Chests
+  chests_wooden: number;         // unopened chests of each tier
+  chests_silver: number;
+  chests_gold:   number;
+  chest_pity:    number;         // chests opened in a row with no item (see data/chestLoot.ts)
 }
 
 // ─── Input types ──────────────────────────────────────────────────────────────
@@ -127,7 +132,9 @@ export type TreatEventType =
   | 'weekly_box_silver'
   | 'weekly_box_basic'
   | 'journal_bonus'
-  | 'shop_purchase';
+  | 'shop_purchase'
+  | 'chest_purchase'   // bought a chest in the Shop (negative)
+  | 'chest_open';      // treats from an opened chest, duplicate refunds included (positive)
 
 export interface TreatHistoryEntry {
   id: number;
@@ -159,9 +166,12 @@ export interface OwnedItem {
 
 // ─── Box reward ───────────────────────────────────────────────────────────────
 // Sprint 2: weekly accuracy box result, shown in modal on Home.
+// Houses run: the box is now a chest that is opened on screen, so it carries
+// the chest tier instead of a treat amount.
 export type BoxTier = 'gold' | 'silver' | 'basic';
+export type ChestTier = 'wooden' | 'silver' | 'gold';
 export interface BoxReward {
   tier: BoxTier;
-  treats: number;
+  chest: ChestTier;     // the chest that was added to the inventory
   adherence: number;    // 0-100, the adherence percentage earned
 }

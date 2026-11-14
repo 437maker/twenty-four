@@ -79,6 +79,7 @@ async function seedUsedApp(): Promise<void> {
   await purchaseItem('outfit_cozy_sweater', 25, 'Cozy Sweater');
   await purchaseShield(50);
   rawDb().prepare(`INSERT INTO task_tombstones (google_event_id) VALUES ('evt_123')`).run();
+  rawDb().prepare(`INSERT INTO chest_openings (tier, bones) VALUES ('wooden', 5)`).run();
 }
 
 beforeEach(async () => {
@@ -339,7 +340,7 @@ describe('useAppStore.resetAllData', () => {
     await useAppStore.getState().loadTodaysTasks(DAY);
     useAppStore.setState({
       pendingCelebration: true, milestoneStreak: 7, streakJustBroke: true,
-      shieldConsumed: true, pendingBoxReward: { tier: 'gold', treats: 20, adherence: 90 },
+      shieldConsumed: true, pendingBoxReward: { tier: 'gold', chest: 'gold', adherence: 90 },
     });
     expect(useAppStore.getState().isOnboarded).toBe(true);
     expect(useAppStore.getState().todaysTasks.length).toBeGreaterThan(0);

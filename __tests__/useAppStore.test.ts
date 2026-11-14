@@ -19,6 +19,7 @@ const mockGetTasksForDates = jest.fn();
 const mockLogStreakEnd = jest.fn();
 const mockChangeTreats = jest.fn();
 const mockLogTreatEvent = jest.fn();
+const mockGrantChest = jest.fn();
 
 jest.mock('../app/db/queries', () => ({
   getSettings: (...args: any[]) => mockGetSettings(...args),
@@ -28,6 +29,7 @@ jest.mock('../app/db/queries', () => ({
   logStreakEnd: (...args: any[]) => mockLogStreakEnd(...args),
   changeTreats: (...args: any[]) => mockChangeTreats(...args),
   logTreatEvent: (...args: any[]) => mockLogTreatEvent(...args),
+  grantChest: (...args: any[]) => mockGrantChest(...args),
 }));
 
 // ── Import the store AFTER mocking ────────────────────────────────────────────
@@ -66,6 +68,10 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     equipped_items:       '{}',
     breed:                'maltese',
     shown_house:          null,
+    chests_wooden:        0,
+    chests_silver:        0,
+    chests_gold:          0,
+    chest_pity:           0,
     ...overrides,
   };
 }
@@ -86,6 +92,7 @@ beforeEach(() => {
   mockLogStreakEnd.mockResolvedValue(undefined);
   mockChangeTreats.mockResolvedValue(undefined);
   mockLogTreatEvent.mockResolvedValue(undefined);
+  mockGrantChest.mockResolvedValue(undefined);
 
   // Reset Zustand store to initial values
   useAppStore.setState({
@@ -369,7 +376,9 @@ describe('checkStreakOnOpen — weekly accuracy box', () => {
     expect(useAppStore.getState().pendingBoxReward).toBeNull();
   });
 
-  test('pays gold (20 treats) for ≥80% adherence on the rolling 7 days', async () => {
+  // Houses run: the box is a chest now. It is added to the inventory
+  // unopened, and its treats are paid when it is opened (see chests.test.tsx).
+  test('gives a Gold Chest for ≥80% adherence on the rolling 7 days', async () => {
     pinDate('2026-05-15');
     // freshSettings call returns the same baseline
     mockGetSettings.mockResolvedValue(
@@ -413,10 +422,12 @@ describe('checkStreakOnOpen — weekly accuracy box', () => {
 
     await useAppStore.getState().checkStreakOnOpen();
 
-    expect(mockChangeTreats).toHaveBeenCalledWith(20);
+    expect(mockGrantChest).toHaveBeenCalledTimes(1);
+    expect(mockGrantChest).toHaveBeenCalledWith('gold');
+    expect(mockChangeTreats).not.toHaveBeenCalled(); // no treats until the chest is opened
     expect(mockLogTreatEvent).toHaveBeenCalledWith(
       'weekly_box_gold',
-      20,
+      0,
       expect.stringContaining('100% adherence')
     );
     expect(mockSaveSettings).toHaveBeenCalledWith({
@@ -424,7 +435,7 @@ describe('checkStreakOnOpen — weekly accuracy box', () => {
     });
     expect(useAppStore.getState().pendingBoxReward).toEqual({
       tier: 'gold',
-      treats: 20,
+      chest: 'gold',
       adherence: 100,
     });
   });

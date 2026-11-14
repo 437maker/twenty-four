@@ -14,10 +14,12 @@ import {
   changeTreats,
   logTreatEvent,
   deleteAllData,
+  grantChest,
 } from '../db/queries';
+import { chestForBoxTier } from '../data/chestLoot';
 import {
   isStreakMilestone, milestoneBonus,
-  weeklyBoxTier, weeklyBoxReward,
+  weeklyBoxTier,
   weeklyAdherence, buildDayAnalytics, getLastNDates,
 } from '../utils/calculations';
 import { runSync, isSyncReady } from '../services/calendarSync';
@@ -175,7 +177,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!s) return;
     set((state) => ({
       settings: state.settings
-        ? { ...state.settings, treat_count: s.treat_count, shields_owned: s.shields_owned }
+        ? {
+            ...state.settings,
+            treat_count:   s.treat_count,
+            shields_owned: s.shields_owned,
+            chests_wooden: s.chests_wooden,
+            chests_silver: s.chests_silver,
+            chests_gold:   s.chests_gold,
+            chest_pity:    s.chest_pity,
+          }
         : null,
     }));
   },
@@ -298,26 +308,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       const dayAnalytics = buildDayAnalytics(taskMap, new Set());
       const adherence = weeklyAdherence(dayAnalytics);
 
-      const tier    = weeklyBoxTier(adherence);
-      const treats  = weeklyBoxReward(tier);
-      await changeTreats(treats);
+      // The box is a chest (Basic → Wooden, Silver → Silver, Gold → Gold).
+      // It goes into the inventory unopened; its treats are paid, and logged,
+      // when it is opened. The ledger row here records the box with 0 treats.
+      const tier  = weeklyBoxTier(adherence);
+      const chest = chestForBoxTier(tier);
+      await grantChest(chest);
       await logTreatEvent(
         tier === 'gold'   ? 'weekly_box_gold'   :
         tier === 'silver' ? 'weekly_box_silver' : 'weekly_box_basic',
-        treats,
-        `Weekly ${tier} accuracy box (${adherence}% adherence)`
+        0,
+        `Weekly ${chest} chest (${adherence}% adherence)`
       );
       await saveSettings({ last_box_date: today });
 
+      const column = chest === 'gold' ? 'chests_gold' : chest === 'silver' ? 'chests_silver' : 'chests_wooden';
       set((state) => ({
         settings: state.settings
           ? {
               ...state.settings,
-              treat_count:   (state.settings.treat_count ?? 0) + treats,
+              [column]:      (state.settings[column] ?? 0) + 1,
               last_box_date: today,
             }
           : null,
-        pendingBoxReward: { tier, treats, adherence },
+        pendingBoxReward: { tier, chest, adherence },
       }));
     }
   },

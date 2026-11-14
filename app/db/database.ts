@@ -167,6 +167,34 @@ export async function initializeDatabase(): Promise<void> {
   await tryExec(db, `UPDATE settings SET equipped_items = '{}' WHERE equipped_items IS NULL OR equipped_items = ''`);
   await tryExec(db, `UPDATE settings SET breed = 'maltese' WHERE breed IS NULL OR breed = ''`);
 
+  // ── Chests: unopened chests, the pity counter, and a log of openings ──────
+  // Same rule as above (bug B0): constant defaults only, then a backfill.
+  //   - chests_wooden / chests_silver / chests_gold : unopened chests owned
+  //   - chest_pity : chests opened in a row that held no item
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN chests_wooden INTEGER NOT NULL DEFAULT 0`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN chests_silver INTEGER NOT NULL DEFAULT 0`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN chests_gold INTEGER NOT NULL DEFAULT 0`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN chest_pity INTEGER NOT NULL DEFAULT 0`);
+  await tryExec(db, `UPDATE settings SET chests_wooden = 0 WHERE chests_wooden IS NULL OR chests_wooden < 0`);
+  await tryExec(db, `UPDATE settings SET chests_silver = 0 WHERE chests_silver IS NULL OR chests_silver < 0`);
+  await tryExec(db, `UPDATE settings SET chests_gold = 0 WHERE chests_gold IS NULL OR chests_gold < 0`);
+  await tryExec(db, `UPDATE settings SET chest_pity = 0 WHERE chest_pity IS NULL OR chest_pity < 0`);
+
+  // One row per chest opened: what tier, how many treats, which item (if
+  // any), and whether that item was a duplicate paid out in treats.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS chest_openings (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      tier       TEXT    NOT NULL,
+      bones      INTEGER NOT NULL DEFAULT 0,
+      item_id    TEXT,
+      duplicate  INTEGER NOT NULL DEFAULT 0,
+      refund     INTEGER NOT NULL DEFAULT 0,
+      pity_used  INTEGER NOT NULL DEFAULT 0,
+      opened_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
   // Ensure settings row 1 always exists
   await db.runAsync('INSERT OR IGNORE INTO settings (id) VALUES (1);');
 }
