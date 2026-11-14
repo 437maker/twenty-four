@@ -4,6 +4,11 @@
 //           treat history, owned items, weekly box, export.
 
 import { getDatabase } from './database';
+import { getCatalogItem } from '../data/shopCatalog';
+import { isBreedAvailable } from '../components/companion/breeds';
+import { SLOTS, parseEquipped, slotForItem, withItem, withoutSlot } from '../components/companion/items/itemSlots';
+import type { Equipped, Slot } from '../components/companion/items/itemSlots';
+import { cleanCompanionName } from '../utils/companionName';
 import { shiftDateString } from '../utils/dateHelpers';
 import {
   Settings, Task, NewTaskInput, Pillar, RepeatType,
@@ -52,6 +57,10 @@ export async function getSettings(): Promise<Settings | null> {
     google_sync_token:            row.google_sync_token    ?? null,
     google_last_sync_at:          row.google_last_sync_at  ?? null,
     google_sync_enabled:          (row.google_sync_enabled ?? 0) === 1,
+    // Wardrobe
+    equipped_items:               row.equipped_items ?? '{}',
+    breed:                        row.breed ?? 'maltese',
+    shown_house:                  row.shown_house ?? null,
   };
 }
 
@@ -684,6 +693,80 @@ export async function purchaseShield(price: number): Promise<boolean> {
     [price]
   );
   await logTreatEvent('shop_purchase', -price, 'Bought: Streak Shield');
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────
+// WARDROBE (what the companion wears, which breed, which house)
+// ─────────────────────────────────────────────────────────────
+// The rules live here, next to the data, so no screen can skip them:
+//   • you can only wear an item you own
+//   • an item only goes in its own slot (a hat cannot be worn as a cape)
+//   • one item per slot: equipping replaces what was there
+
+export async function getEquipped(): Promise<Equipped> {
+  const db  = await getDatabase();
+  const row = await db.getFirstAsync<{ equipped_items: string | null }>(
+    'SELECT equipped_items FROM settings WHERE id = 1'
+  );
+  return parseEquipped(row?.equipped_items);
+}
+
+async function writeEquipped(equipped: Equipped): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE settings SET equipped_items = ? WHERE id = 1',
+    [JSON.stringify(equipped)]
+  );
+}
+
+// Put an owned item on. Returns false, and changes nothing, if the item is
+// not wearable, does not belong in that slot, or is not owned.
+export async function equipItem(slot: Slot, itemId: string): Promise<boolean> {
+  if (slotForItem(itemId) !== slot) return false;
+  if (!(await isItemOwned(itemId))) return false;
+  const equipped = await getEquipped();
+  await writeEquipped(withItem(equipped, itemId));
+  return true;
+}
+
+// Take off whatever is in a slot. Safe to call on an empty slot.
+export async function unequipSlot(slot: Slot): Promise<void> {
+  if (!SLOTS.includes(slot)) return;
+  const equipped = await getEquipped();
+  await writeEquipped(withoutSlot(equipped, slot));
+}
+
+// Switch to another breed. Returns false for a breed the app does not have.
+// The name and everything she is wearing are left exactly as they are.
+export async function setBreed(breedId: string): Promise<boolean> {
+  if (!isBreedAvailable(breedId)) return false;
+  const db = await getDatabase();
+  await db.runAsync('UPDATE settings SET breed = ? WHERE id = 1', [breedId]);
+  return true;
+}
+
+// Choose which owned house the yard shows. Pass null to go back to
+// "the best house I own". Returns false for anything that is not an owned house.
+export async function setShownHouse(itemId: string | null): Promise<boolean> {
+  const db = await getDatabase();
+  if (itemId === null) {
+    await db.runAsync('UPDATE settings SET shown_house = NULL WHERE id = 1');
+    return true;
+  }
+  if (getCatalogItem(itemId)?.category !== 'house') return false;
+  if (!(await isItemOwned(itemId))) return false;
+  await db.runAsync('UPDATE settings SET shown_house = ? WHERE id = 1', [itemId]);
+  return true;
+}
+
+// Rename the companion. The name is trimmed; an empty name or one longer than
+// MAX_NAME_LENGTH is rejected (returns false) and nothing is saved.
+export async function renameCompanion(name: string): Promise<boolean> {
+  const clean = cleanCompanionName(name);
+  if (clean === null) return false;
+  const db = await getDatabase();
+  await db.runAsync('UPDATE settings SET companion_name = ? WHERE id = 1', [clean]);
   return true;
 }
 

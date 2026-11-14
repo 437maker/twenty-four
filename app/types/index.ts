@@ -68,6 +68,10 @@ export interface Settings {
   google_sync_token:    string | null;  // for incremental pulls
   google_last_sync_at:  string | null;  // ISO timestamp
   google_sync_enabled:  boolean;        // master toggle
+  // Wardrobe
+  equipped_items: string;        // JSON map from slot to item id, e.g. {"head":"acc_party_hat"}
+  breed:          string;        // which dog is shown, e.g. "maltese"
+  shown_house:    string | null; // the owned house item shown in the yard (null = best owned)
 }
 
 // ─── Input types ──────────────────────────────────────────────────────────────

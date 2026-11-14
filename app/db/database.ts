@@ -152,6 +152,21 @@ export async function initializeDatabase(): Promise<void> {
   await tryExec(db, `ALTER TABLE settings ADD COLUMN google_last_sync_at TEXT`);
   await tryExec(db, `ALTER TABLE settings ADD COLUMN google_sync_enabled INTEGER NOT NULL DEFAULT 0`);
 
+  // ── Wardrobe: what the companion wears, which breed, which house shows ────
+  // Each column is added with a CONSTANT default. SQLite refuses to add a
+  // column with a computed default to a table that already has rows, and
+  // tryExec would hide that failure (this is bug B0 on the tasks table).
+  // Constant defaults always succeed. The backfill lines after them repair
+  // any row that somehow holds an empty value.
+  //   - equipped_items : JSON map from slot to item id, e.g. {"head":"acc_party_hat"}
+  //   - breed          : which dog is shown
+  //   - shown_house    : the owned house shown in the yard (NULL = best owned)
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN equipped_items TEXT NOT NULL DEFAULT '{}'`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN breed TEXT NOT NULL DEFAULT 'maltese'`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN shown_house TEXT`);
+  await tryExec(db, `UPDATE settings SET equipped_items = '{}' WHERE equipped_items IS NULL OR equipped_items = ''`);
+  await tryExec(db, `UPDATE settings SET breed = 'maltese' WHERE breed IS NULL OR breed = ''`);
+
   // Ensure settings row 1 always exists
   await db.runAsync('INSERT OR IGNORE INTO settings (id) VALUES (1);');
 }

@@ -70,6 +70,9 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     google_sync_token: null,
     google_last_sync_at: null,
     google_sync_enabled: false,
+    equipped_items: '{}',
+    breed: 'maltese',
+    shown_house: null,
     ...overrides,
   };
 }
