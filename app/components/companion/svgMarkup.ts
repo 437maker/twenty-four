@@ -37,6 +37,8 @@ function shapeMarkup(s: Shape): string {
 }
 
 const shapes = (list: readonly Shape[]) => list.map(shapeMarkup).join('');
+// The same, for other drawings (the house scenes).
+export const shapesMarkup = shapes;
 
 function drawable(dr: Drawable): string {
   let inner = shapes(dr.shapes); // already placed at its anchor by scene.ts
