@@ -14,6 +14,7 @@ import {
   Animated,
   Dimensions,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,8 +23,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ShopItemDef, ShopCategory, OwnedItem } from '../types';
 import { SHOP_CATALOG, getCatalogByCategory } from '../data/shopCatalog';
 import {
-  purchaseItem, purchaseShield, getOwnedItems, equipItem, unequipSlot, setShownHouse,
+  purchaseItem, purchaseShield, getOwnedItems, equipItem, unequipSlot, setShownHouse, purchaseChest,
 } from '../db/queries';
+import { CHESTS, CHEST_TIERS, PITY_LIMIT, chestOdds } from '../data/chestLoot';
+import type { ChestTier } from '../data/chestLoot';
+import ChestOpenModal, { ChestSvg } from '../components/chest/ChestOpenModal';
 import Companion from '../components/companion/Companion';
 import CompanionSvg from '../components/companion/CompanionSvg';
 import { getHouse } from '../components/companion/houses';
@@ -66,10 +70,13 @@ const TIER_LABELS: Record<number, string> = {
   5: 'V',
 };
 
-const CATEGORIES: { key: ShopCategory; label: string }[] = [
+// The tabs. Four are shop categories; "Chests" is its own kind of page.
+type ShopTab = ShopCategory | 'chest';
+const CATEGORIES: { key: ShopTab; label: string }[] = [
   { key: 'outfit',    label: 'Outfits'     },
   { key: 'accessory', label: 'Accessories' },
   { key: 'house',     label: 'House'       },
+  { key: 'chest',     label: 'Chests'      },
   { key: 'shield',    label: 'Shields'     },
 ];
 
@@ -389,6 +396,83 @@ function PurchaseModal({
   );
 }
 
+// ─── Chests ───────────────────────────────────────────────────────────────────
+// One card per chest tier: what it costs, what is inside, and the odds. The
+// odds text comes from the same table the loot roll uses (data/chestLoot.ts),
+// so what is shown is what is rolled.
+interface ChestCardProps {
+  tier: ChestTier;
+  count: number;                       // unopened chests of this tier
+  onBuy: (tier: ChestTier) => void;
+  onOpen: (tier: ChestTier) => void;
+}
+function ChestCard({ tier, count, onBuy, onOpen }: ChestCardProps) {
+  const def = CHESTS[tier];
+  const odds = chestOdds(tier);
+  return (
+    <View style={styles.chestCard} testID={`shop-chest-${tier}`}>
+      <View style={styles.chestTop}>
+        <ChestSvg tier={tier} size={84} />
+        <View style={styles.chestInfo}>
+          <Text style={styles.chestName}>{def.name}</Text>
+          <Text style={styles.chestDescription}>{def.description}</Text>
+          <Text style={styles.chestBones}>🦴 {odds.bones[0]}–{odds.bones[1]} treats inside, every time</Text>
+        </View>
+      </View>
+
+      <View style={styles.oddsBox} accessible accessibilityLabel={`Odds for the ${def.name}`} testID={`shop-chest-odds-${tier}`}>
+        <Text style={styles.oddsTitle}>Item chance {odds.itemPct}%</Text>
+        {odds.rows.map((row) => (
+          <View key={row.label} style={styles.oddsRow}>
+            <Text style={styles.oddsLabel}>{row.label}</Text>
+            <Text style={styles.oddsPct}>{row.pct}%</Text>
+          </View>
+        ))}
+        <Text style={styles.oddsNote}>
+          An item is guaranteed after {PITY_LIMIT} chests in a row without one. An item you already own becomes treats worth half its price.
+        </Text>
+      </View>
+
+      <View style={styles.chestButtons}>
+        <TouchableOpacity
+          style={[styles.buyButton, styles.chestButton]}
+          onPress={() => onBuy(tier)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Buy a ${def.name} for ${def.price} treats`}
+          testID={`shop-chest-buy-${tier}`}
+        >
+          <Text style={styles.buyButtonText}>Buy  🦴 {def.price}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.buyButton, styles.chestButton, styles.wearButton, count < 1 && styles.chestButtonOff]}
+          onPress={() => onOpen(tier)}
+          disabled={count < 1}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: count < 1 }}
+          accessibilityLabel={count < 1 ? `No ${def.name} to open` : `Open a ${def.name}. You have ${count}.`}
+          testID={`shop-chest-open-${tier}`}
+        >
+          <Text style={styles.buyButtonText}>{count < 1 ? 'None to open' : `Open (${count})`}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function ChestInfoCard() {
+  return (
+    <View style={styles.shieldInfoCard}>
+      <Text style={styles.shieldInfoTitle}>ℹ️  About Chests</Text>
+      <Text style={styles.shieldInfoText}>
+        You earn one chest a week for sticking to your plan, and you can buy more here with treats.
+        Chests are never sold for real money, and there are no ads. The odds for every chest are shown on its card.
+      </Text>
+    </View>
+  );
+}
+
 // ─── Shields info card ────────────────────────────────────────────────────────
 
 function ShieldInfoCard() {
@@ -411,7 +495,9 @@ export default function ShopScreen() {
   const look = useCompanionLook();          // breed + what she is wearing
   const shownHouse = settings?.shown_house ?? null;
 
-  const [activeCategory, setActiveCategory] = useState<ShopCategory>('outfit');
+  const [activeCategory, setActiveCategory] = useState<ShopTab>('outfit');
+  const [openingChest, setOpeningChest] = useState<ChestTier | null>(null); // the chest being opened on screen
+  const reduceMotion = useReduceMotion();
   const [ownedItems, setOwnedItems] = useState<OwnedItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<ShopItemDef | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -454,6 +540,43 @@ export default function ShopScreen() {
 
   // Items for current category
   const catalogItems = getCatalogByCategory(activeCategory);
+
+  // ── Chests ────────────────────────────────────────────────────────────────
+  const chestCounts: Record<ChestTier, number> = {
+    wooden: settings?.chests_wooden ?? 0,
+    silver: settings?.chests_silver ?? 0,
+    gold:   settings?.chests_gold ?? 0,
+  };
+
+  const handleBuyChest = (tier: ChestTier) => {
+    const def = CHESTS[tier];
+    Alert.alert(`Buy a ${def.name}?`, `It costs 🦴 ${def.price} treats.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Buy',
+        onPress: async () => {
+          try {
+            const ok = await purchaseChest(tier);
+            if (!ok) {
+              Alert.alert('Not enough treats!', `You need 🦴 ${def.price} treats to buy a ${def.name}.`, [{ text: 'OK' }]);
+              return;
+            }
+            await refreshTreatCount();
+          } catch {
+            Alert.alert('Error', 'Something went wrong. Please try again.');
+          }
+        },
+      },
+    ]);
+  };
+
+  // The chest was opened (in the database) and its reward card was closed:
+  // pick up the new treat count, chest counts, and any new item.
+  const handleChestClosed = async () => {
+    setOpeningChest(null);
+    await refreshTreatCount();
+    await loadOwned();
+  };
 
   // ── Open purchase modal ───────────────────────────────────────────────────
   const handleBuyPress = (item: ShopItemDef) => {
@@ -601,7 +724,7 @@ export default function ShopScreen() {
 
   // Spacer item for FlatList when odd number of cards
   const dataWithSpacer = catalogItems.length % 2 !== 0
-    ? [...catalogItems, { id: '__spacer__', category: activeCategory, name: '', description: '', price: 0, tier: 1, emoji: '' } as ShopItemDef]
+    ? [...catalogItems, { id: '__spacer__', category: activeCategory as ShopCategory, name: '', description: '', price: 0, tier: 1, emoji: '' } as ShopItemDef]
     : catalogItems;
 
   const renderItemWithSpacer = useCallback(
@@ -665,7 +788,7 @@ export default function ShopScreen() {
               onPress={() => setActiveCategory(cat.key)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]} numberOfLines={1} adjustsFontSizeToFit>
                 {cat.label}
               </Text>
               {isActive && <View style={styles.tabUnderline} />}
@@ -674,7 +797,15 @@ export default function ShopScreen() {
         })}
       </View>
 
-      {/* ── Item grid ────────────────────────────────────────────────────────── */}
+      {/* ── Chests (their own page) or the item grid ─────────────────────────── */}
+      {activeCategory === 'chest' ? (
+        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false} testID="shop-chests">
+          <ChestInfoCard />
+          {CHEST_TIERS.map((tier) => (
+            <ChestCard key={tier} tier={tier} count={chestCounts[tier]} onBuy={handleBuyChest} onOpen={setOpeningChest} />
+          ))}
+        </ScrollView>
+      ) : (
       <FlatList
         key={activeCategory}
         data={dataWithSpacer}
@@ -686,6 +817,16 @@ export default function ShopScreen() {
         showsVerticalScrollIndicator={false}
         initialNumToRender={6}
         windowSize={5}
+      />
+      )}
+
+      {/* ── Opening a chest ──────────────────────────────────────────────────── */}
+      <ChestOpenModal
+        tier={openingChest}
+        reduceMotion={reduceMotion}
+        breed={look.breed}
+        equipped={look.equipped}
+        onClose={handleChestClosed}
       />
 
       {/* ── House preview (animated scene + your dog) ────────────────────────── */}
@@ -788,7 +929,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '500',
     color: '#9CA3AF',
   },
@@ -948,6 +1089,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#059669',
   },
+
+  // ── Chest cards ──────────────────────────────────────────────────────────────
+  chestCard: {
+    marginHorizontal: CARD_MARGIN,
+    marginTop: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8 },
+      android: { elevation: 3 },
+    }),
+  },
+  chestTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  chestInfo: { flex: 1 },
+  chestName: { fontSize: 17, fontWeight: '800', color: '#111827' },
+  chestDescription: { fontSize: 12, color: '#6B7280', lineHeight: 17, marginTop: 2 },
+  chestBones: { fontSize: 13, fontWeight: '700', color: '#D97706', marginTop: 6 },
+  oddsBox: { backgroundColor: '#F5F3FF', borderRadius: 12, padding: 10, marginTop: 10 },
+  oddsTitle: { fontSize: 13, fontWeight: '800', color: '#3C3489', marginBottom: 4 },
+  oddsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 1 },
+  oddsLabel: { fontSize: 12, color: '#4B5563' },
+  oddsPct: { fontSize: 12, fontWeight: '700', color: '#111827' },
+  oddsNote: { fontSize: 11, color: '#6B7280', lineHeight: 15, marginTop: 6 },
+  chestButtons: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  chestButton: { flex: 1, width: undefined, paddingVertical: 10 },
+  chestButtonOff: { backgroundColor: '#C7CDD6' },
 
   // ── Shield info card ─────────────────────────────────────────────────────────
   shieldInfoCard: {

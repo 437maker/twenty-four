@@ -16,6 +16,7 @@
 //   houses/houses-inside.png          the same, with her resting inside
 //   houses/houses-small.png           the Shop card size
 //   houses/<house id>.png             one large picture per house
+//   chests.png                        the three chests, closed and open
 //
 // Run:   npm run render:companion
 //        node scripts/render-companion.mjs some/dir            (write elsewhere)
@@ -55,6 +56,8 @@ const { BREEDS } = await fromApp('breeds/index.ts');
 const { ITEM_SLOTS, MAX_OUTFIT } = await fromApp('items/itemSlots.ts');
 const { HOUSES } = await fromApp('houses/index.ts');
 const { houseInnerMarkup, houseSvgMarkup } = await fromApp('houses/houseMarkup.ts');
+const { shapesMarkup } = await fromApp('svgMarkup.ts');
+const { chestParts } = await fromApp('../chest/chestArt.ts');
 
 const outDir = path.resolve(root, process.argv[2] ?? 'docs/companion');
 const only = process.argv[3] ?? 'all'; // 'all' | 'items' | a breed id
@@ -207,6 +210,19 @@ if (only === 'all' || only === 'houses') {
   for (const house of HOUSES) {
     save(`houses/${house.id}.png`, houseSvgMarkup(house, 600, { dog: { breed: 'maltese', state: 'idle' }, idPrefix: house.id }), 600);
   }
+}
+
+// ── The chests: closed (top row) and with the lid popped (bottom row) ──
+if (only === 'all' || only === 'chests') {
+  let inner = '<rect width="300" height="230" fill="#FFFFFF"/>';
+  ['wooden', 'silver', 'gold'].forEach((tier, i) => {
+    const parts = chestParts(tier);
+    inner +=
+      `<g transform="translate(${i * 100} 0)">${shapesMarkup(parts.body)}${shapesMarkup(parts.lid)}</g>` +
+      `<g transform="translate(${i * 100} 130)">${shapesMarkup(parts.inside)}${shapesMarkup(parts.body)}` +
+      `<g transform="translate(0 -24) rotate(-14 12 50)">${shapesMarkup(parts.lid)}</g></g>`;
+  });
+  save('chests.png', `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="230" viewBox="0 0 300 230">${inner}</svg>`, 600);
 }
 
 console.log(`Wrote ${count} PNG files to ${path.relative(root, outDir) || '.'}`);

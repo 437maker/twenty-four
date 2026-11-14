@@ -56,6 +56,8 @@ import { sceneFit } from '../components/companion/houses/types';
 import YardDog from '../components/companion/houses/YardDog';
 import { currentSleepBlock } from '../components/companion/houses/restMachine';
 import RenameCompanionModal from '../components/RenameCompanionModal';
+import ChestOpenModal, { ChestSvg } from '../components/chest/ChestOpenModal';
+import type { ChestTier } from '../data/chestLoot';
 import BreedPickerScreen from './BreedPickerScreen';
 import SettingsScreen from './SettingsScreen';
 import { getTodayString, shiftDateString } from '../utils/dateHelpers';
@@ -699,6 +701,7 @@ export default function HomeScreen() {
     shieldConsumed,
     setShieldConsumed,
     syncWithGoogle,
+    refreshTreatCount,
   } = useAppStore();
 
   const [yesterdayAdherence, setYesterdayAdherence] = useState(0);
@@ -708,6 +711,7 @@ export default function HomeScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [celebModalVisible, setCelebModalVisible] = useState(false);
   const [boxModalVisible, setBoxModalVisible] = useState(false);
+  const [openingChest, setOpeningChest] = useState<ChestTier | null>(null); // the weekly chest being opened
   const [yardStage, setYardStage] = useState(0);
   const [yardHouseId, setYardHouseId] = useState<string | null>(null); // the house drawn in the yard
   const [renameVisible, setRenameVisible] = useState(false);       // tap the name
@@ -992,7 +996,7 @@ export default function HomeScreen() {
       >
         <View style={styles.celebOverlay}>
           <View style={styles.celebCard}>
-            <NovaCompanion state="happy" name={name} size={120} reduceMotion={reduceMotion} />
+            <ChestSvg tier={pendingBoxReward?.chest ?? 'wooden'} size={120} />
             <Text style={styles.celebTitle}>{weeklyBoxLabel(pendingBoxReward?.tier ?? 'basic')}</Text>
             <Text style={styles.celebSubtitle}>Last week's adherence: {pendingBoxReward?.adherence ?? 0}%</Text>
             <Text style={styles.boxDescription}>
@@ -1003,20 +1007,51 @@ export default function HomeScreen() {
                   : "Good start! Let's aim higher this week."}
             </Text>
             <View style={styles.celebBonus}>
-              <Text style={styles.celebBonusText}>+{pendingBoxReward?.treats ?? 0} treats! 🦴</Text>
+              <Text style={styles.celebBonusText}>You earned a chest! 🦴</Text>
             </View>
+            {/* Open it now, or keep it: it waits in Shop → Chests. */}
             <TouchableOpacity
               style={styles.celebBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Open the chest now"
+              testID="home-box-open"
+              onPress={() => {
+                const chest = pendingBoxReward?.chest ?? null;
+                setBoxModalVisible(false);
+                setPendingBoxReward(null);
+                setOpeningChest(chest);
+              }}
+            >
+              <Text style={styles.celebBtnText}>Open now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.laterBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Keep the chest for later. It will be in the Shop under Chests."
+              testID="home-box-later"
               onPress={() => {
                 setBoxModalVisible(false);
                 setPendingBoxReward(null);
               }}
             >
-              <Text style={styles.celebBtnText}>Claim</Text>
+              <Text style={styles.laterBtnText}>Later (it waits in Shop → Chests)</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* The weekly chest, opening on screen */}
+      <ChestOpenModal
+        tier={openingChest}
+        reduceMotion={reduceMotion}
+        breed={look.breed}
+        equipped={look.equipped}
+        onClose={() => {
+          setOpeningChest(null);
+          // New treats, and maybe a new house for the yard.
+          refreshTreatCount().then(loadAll);
+        }}
+      />
     </>
   );
 }
@@ -1130,4 +1165,6 @@ const styles = StyleSheet.create({
   celebBonusText: { fontSize: 18, fontWeight: '700', color: COLORS.treatAccent },
   celebBtn: { marginTop: 24, backgroundColor: COLORS.brand, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 48 },
   celebBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  laterBtn: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  laterBtnText: { color: COLORS.inkSoft, fontSize: 13, fontWeight: '600' },
 });

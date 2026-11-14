@@ -5,6 +5,18 @@
 // import would crash the whole app at startup. This way the worst case is
 // simply no vibration.
 
+// A heavier beat, for the moment a chest's lid pops open.
+export function thump(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Haptics = require('expo-haptics');
+    const done = Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (done && typeof done.catch === 'function') done.catch(() => {});
+  } catch {
+    // No haptics available. Nothing to do.
+  }
+}
+
 export function lightTap(): void {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
