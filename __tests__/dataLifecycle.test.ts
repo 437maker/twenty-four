@@ -134,10 +134,10 @@ describe('purchases on a real database', () => {
     expect(count('treat_history')).toBe(1);
   });
 
-  // Bug B3: a purchase is three statements (deduct treats, grant the item,
-  // write the ledger row). If the app dies between them, treats are gone with
-  // nothing to show for it. Here the third statement is made to fail, which
-  // is the same thing as far as the database can tell.
+  // Bug B3 (fixed): a purchase is three statements (deduct treats, grant the
+  // item, write the ledger row). They now run in one transaction, so if the
+  // app dies between them nothing is kept. Here the third statement is made
+  // to fail, which is the same thing as far as the database can tell.
   function breakTheLedger(): void {
     rawDb().exec(`
       CREATE TRIGGER forced_failure BEFORE INSERT ON treat_history
@@ -145,7 +145,7 @@ describe('purchases on a real database', () => {
     `);
   }
 
-  test.failing('B3: an item purchase that fails half-way charges nothing and grants nothing', async () => {
+  test('B3: an item purchase that fails half-way charges nothing and grants nothing', async () => {
     await changeTreats(100);
     breakTheLedger();
 
@@ -155,7 +155,7 @@ describe('purchases on a real database', () => {
     expect(await getOwnedItems()).toHaveLength(0);
   });
 
-  test.failing('B3: a shield purchase that fails half-way charges nothing and grants nothing', async () => {
+  test('B3: a shield purchase that fails half-way charges nothing and grants nothing', async () => {
     await changeTreats(100);
     breakTheLedger();
 

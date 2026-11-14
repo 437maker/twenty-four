@@ -103,6 +103,13 @@ jest.mock('expo-sqlite', () => ({
     }),
 
     getAllAsync: jest.fn(async () => []),
+
+    // Purchases run inside one transaction. This fake has nothing to roll
+    // back, so it just runs the work (rollback is tested on real SQLite in
+    // dataLifecycle.test.ts).
+    withTransactionAsync: jest.fn(async (task: () => Promise<void>) => {
+      await task();
+    }),
   })),
 }));
 

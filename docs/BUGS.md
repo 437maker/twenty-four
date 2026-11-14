@@ -46,14 +46,6 @@ Line numbers are as of the commit that added the entry.
 - **Impact:** low. The cooldown is slightly short.
 - **Fix idea:** parse with `T12:00:00` like the rest of the app, or compare date strings.
 
-### B3. Purchases are not atomic
-- **Where:** `app/db/queries.ts`, `purchaseItem` and `purchaseShield`.
-- **Repro:** the function runs three separate statements (deduct treats, insert
-  owned item, write ledger row). Kill the app between the first and second.
-- **Impact:** medium, rare. Treats are gone but the item is not owned and the
-  ledger has no record.
-- **Fix idea:** wrap the three statements in `db.withTransactionAsync`.
-
 ### B4. Milestone bonuses can never be re-earned
 - **Where:** `app/store/useAppStore.ts`, `checkStreakOnOpen` (`milestones_claimed`).
 - **Repro:** reach a 7-day streak (bonus paid), break it, build to 7 again. No bonus.
@@ -257,3 +249,15 @@ To confirm on the phone: follow "Sentry verification" in `TESTING_NOTES.md`.
   were deducted twice; only one row was inserted (`INSERT OR IGNORE`).
 - **Tests:** `__tests__/queries.test.ts`, two "already-owned item" tests (both
   failed before, both pass after).
+
+### F3. Purchases were not atomic (was B3, fixed in the houses run)
+- **Where it was:** `app/db/queries.ts`, `purchaseItem` and `purchaseShield`.
+- **Repro on the old code:** each ran three separate statements (deduct
+  treats, grant the item, write the ledger row). Killing the app between the
+  first and second left treats gone, no item, and no ledger record.
+- **Fix:** the check and all three statements run inside one
+  `db.withTransactionAsync`. Chests (buying and opening) use the same pattern.
+- **Tests:** `__tests__/dataLifecycle.test.ts`, the two "B3" tests. They ran
+  as `test.failing` on the old code (commit before the fix) and pass now.
+  They force the ledger insert to fail on a real SQLite database and check
+  that nothing was charged and nothing was granted.

@@ -655,45 +655,58 @@ export async function isItemOwned(item_id: string): Promise<boolean> {
 // Returns false (and charges nothing) if the item is already owned or there
 // are not enough treats. The ownership check lives here, next to the code
 // that takes the money, so no caller can double-charge by skipping a UI check.
+//
+// The check, the deduction, the grant, and the ledger row run in ONE
+// transaction: either all of them happen or none does. If anything fails
+// half-way (or the app is killed), SQLite rolls the whole purchase back, so
+// treats can never be taken without the item being granted (this was bug B3).
 export async function purchaseItem(
   item_id: string,
   price: number,
   itemName: string
 ): Promise<boolean> {
-  if (await isItemOwned(item_id)) return false;
+  const db = await getDatabase();
+  let bought = false;
+  await db.withTransactionAsync(async () => {
+    if (await isItemOwned(item_id)) return;
+    const row = await db.getFirstAsync<{ treat_count: number }>(
+      'SELECT treat_count FROM settings WHERE id = 1'
+    );
+    if (!row || row.treat_count < price) return;
 
-  const db      = await getDatabase();
-  const row     = await db.getFirstAsync<{ treat_count: number }>(
-    'SELECT treat_count FROM settings WHERE id = 1'
-  );
-  if (!row || row.treat_count < price) return false;
-
-  await db.runAsync(
-    `UPDATE settings SET treat_count = treat_count - ? WHERE id = 1`,
-    [price]
-  );
-  await db.runAsync(
-    'INSERT OR IGNORE INTO owned_items (item_id) VALUES (?)',
-    [item_id]
-  );
-  await logTreatEvent('shop_purchase', -price, `Bought: ${itemName}`);
-  return true;
+    await db.runAsync(
+      `UPDATE settings SET treat_count = treat_count - ? WHERE id = 1`,
+      [price]
+    );
+    await db.runAsync(
+      'INSERT OR IGNORE INTO owned_items (item_id) VALUES (?)',
+      [item_id]
+    );
+    await logTreatEvent('shop_purchase', -price, `Bought: ${itemName}`);
+    bought = true;
+  });
+  return bought;
 }
 
-// Special: purchase a shield (adds to shields_owned count instead of owned_items)
+// Special: purchase a shield (adds to shields_owned count instead of owned_items).
+// One transaction, like purchaseItem.
 export async function purchaseShield(price: number): Promise<boolean> {
-  const db  = await getDatabase();
-  const row = await db.getFirstAsync<{ treat_count: number }>(
-    'SELECT treat_count FROM settings WHERE id = 1'
-  );
-  if (!row || row.treat_count < price) return false;
+  const db = await getDatabase();
+  let bought = false;
+  await db.withTransactionAsync(async () => {
+    const row = await db.getFirstAsync<{ treat_count: number }>(
+      'SELECT treat_count FROM settings WHERE id = 1'
+    );
+    if (!row || row.treat_count < price) return;
 
-  await db.runAsync(
-    `UPDATE settings SET treat_count = treat_count - ?, shields_owned = shields_owned + 1 WHERE id = 1`,
-    [price]
-  );
-  await logTreatEvent('shop_purchase', -price, 'Bought: Streak Shield');
-  return true;
+    await db.runAsync(
+      `UPDATE settings SET treat_count = treat_count - ?, shields_owned = shields_owned + 1 WHERE id = 1`,
+      [price]
+    );
+    await logTreatEvent('shop_purchase', -price, 'Bought: Streak Shield');
+    bought = true;
+  });
+  return bought;
 }
 
 // ─────────────────────────────────────────────────────────────
