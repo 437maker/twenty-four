@@ -12,11 +12,16 @@
 //   breeds/<breed>/sheet-240.png      each breed: every state on every background
 //   breeds/<breed>/sheet-64.png       the same at the smallest size
 //   breeds/<breed>/max-outfit.png     each breed fully dressed, all four states
+//   houses/houses.png                 all 15 houses with the Maltese in front
+//   houses/houses-inside.png          the same, with her resting inside
+//   houses/houses-small.png           the Shop card size
+//   houses/<house id>.png             one large picture per house
 //
 // Run:   npm run render:companion
 //        node scripts/render-companion.mjs some/dir            (write elsewhere)
 //        node scripts/render-companion.mjs some/dir items      (only the item sheets)
 //        node scripts/render-companion.mjs some/dir corgi      (only one breed)
+//        node scripts/render-companion.mjs some/dir houses     (only the house sheets)
 //
 // Needs Node 22.15+ (it imports the app's TypeScript files directly; Node
 // strips the types). The only package it uses is @resvg/resvg-js, a
@@ -48,6 +53,8 @@ const { BACKDROPS } = await fromApp('palette.ts');
 const { outlineScaleForSize } = await fromApp('poses.ts');
 const { BREEDS } = await fromApp('breeds/index.ts');
 const { ITEM_SLOTS, MAX_OUTFIT } = await fromApp('items/itemSlots.ts');
+const { HOUSES } = await fromApp('houses/index.ts');
+const { houseInnerMarkup, houseSvgMarkup } = await fromApp('houses/houseMarkup.ts');
 
 const outDir = path.resolve(root, process.argv[2] ?? 'docs/companion');
 const only = process.argv[3] ?? 'all'; // 'all' | 'items' | a breed id
@@ -169,6 +176,37 @@ if (only === 'all' || only === 'lineup') {
   });
   const g = grid(BREEDS.length, 2, inner, 200);
   save('breeds/lineup.png', g.svg, g.width);
+}
+
+// ── The houses: each scene with a dog in front, and with her resting inside ──
+if (only === 'all' || only === 'houses') {
+  const W = 300;
+  const H = 200;
+  const COLS = 3;
+  // `dogFor(i)` picks the dog for house number i; `px` is the width of one scene.
+  const sheet = (name, dogFor, px, marks = false) => {
+    let inner = '';
+    HOUSES.forEach((house, i) => {
+      const x = (i % COLS) * W;
+      const y = Math.floor(i / COLS) * H;
+      inner +=
+        `<svg x="${x}" y="${y}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+        houseInnerMarkup(house, { dog: dogFor(i), idPrefix: `hs${cellId++}`, marks }) +
+        `</svg>`;
+    });
+    const rows = Math.ceil(HOUSES.length / COLS);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * W}" height="${rows * H}" viewBox="0 0 ${COLS * W} ${rows * H}">${inner}</svg>`;
+    save(`houses/${name}.png`, svg, COLS * px);
+  };
+  sheet('houses', () => ({ breed: 'maltese', state: 'idle' }), 420);
+  sheet('houses-inside', () => ({ breed: 'maltese', inside: true }), 420, true);
+  // A different breed in each scene, dressed, to check contrast with dark coats.
+  sheet('houses-breeds', (i) => ({ breed: BREEDS[i % BREEDS.length].id, state: 'happy', equipped: i % 2 ? MAX_OUTFIT : {} }), 420);
+  sheet('houses-breeds-inside', (i) => ({ breed: BREEDS[(i + 1) % BREEDS.length].id, inside: true }), 420);
+  sheet('houses-small', () => ({ breed: 'maltese', state: 'idle' }), 140);
+  for (const house of HOUSES) {
+    save(`houses/${house.id}.png`, houseSvgMarkup(house, 600, { dog: { breed: 'maltese', state: 'idle' }, idPrefix: house.id }), 600);
+  }
 }
 
 console.log(`Wrote ${count} PNG files to ${path.relative(root, outDir) || '.'}`);
