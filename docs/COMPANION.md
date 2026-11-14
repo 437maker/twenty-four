@@ -238,8 +238,80 @@ item, idle and happy), `max-outfit.png` (one item in every slot, all four
 states), and `max-outfit-64.png` (the same at the smallest size).
 
 Follow-ups, not done in this run:
-- Houses are not drawn individually. "Show in yard" picks the yard stage.
 - Recoloring the Maltese's bow from a shop item.
+
+<!-- COMPANION_ADD: sections added by the houses run, 2026-11-14 -->
+## Houses
+
+Every House item in the Shop (15) has its own drawing and its own backdrop.
+The yard on Home shows the house picked with "Show in yard", or the best
+house owned. With no house owned, the old starter yard is shown.
+
+All fifteen, with the Maltese in front (rows are tiers 1 to 5):
+
+![All 15 houses](companion/houses/houses.png)
+
+The same with a dog resting inside: [`houses-inside.png`](companion/houses/houses-inside.png).
+Other breeds, some fully dressed: [`houses-breeds.png`](companion/houses/houses-breeds.png)
+and [`houses-breeds-inside.png`](companion/houses/houses-breeds-inside.png).
+The Shop card size: [`houses-small.png`](companion/houses/houses-small.png).
+One large picture per house: `docs/companion/houses/<house id>.png`.
+
+Code: `app/components/companion/houses/`.
+
+| File | Job |
+|---|---|
+| `types.ts` | what a house is (`HouseDef`), the ambient motion math, and how a scene is fitted into a view |
+| `art.ts` | drawing helpers: sky, ground, hills, clouds, pines, palms, doorways |
+| `tier1.ts` to `tier5.ts` | the drawings, three houses per file |
+| `index.ts` | the list of houses and `getHouse(id)` |
+| `HouseScene.tsx` | `<HouseScene>` (animated) and `<HouseStill>` (one still picture) |
+| `houseMarkup.ts` | the same scene as SVG text, for the render script |
+
+**A scene** is drawn in a 300 x 200 box and has four parts:
+
+| Part | What it is | Moves? |
+|---|---|---|
+| backdrop | sky, ground, two or three scenery shapes | no |
+| house | the building | no |
+| ambient | small loops: smoke, waves, snow, stars, clock hands | yes |
+| three points | where the dog stands, the door, where she rests inside | no |
+
+**Ambient motion.** Each ambient element is its own see-through layer. Six
+motions exist: `rise` (smoke, embers), `scroll` (snow, leaves, bubbles,
+clouds), `sway` (palms, kelp, canopy, light rays), `spin` (clock hands,
+portal, station lights), `pulse` (beacon, embers, stars), and `bob` (waves,
+shimmer, floating shards). One clock drives them all. Under Reduce Motion,
+and when Home is not the screen in front, the clock stops.
+
+| House | What moves |
+|---|---|
+| Cozy Den | chimney smoke |
+| Beach Shack | two rows of waves, the palm |
+| Forest Cabin | falling leaves |
+| Treehouse | the canopy |
+| Mountain Lodge | two layers of snow |
+| Desert Oasis | heat shimmer, the palm |
+| Cloud Castle | drifting clouds, a twinkle |
+| Underwater Palace | rising bubbles, kelp |
+| Sky Tower | the beacon, clouds, city windows |
+| Space Station | twinkling stars, a turning ring of lights |
+| Dragon's Lair | the ember glow in the cave, rising embers |
+| Time Fortress | the clock hands |
+| Realm of the Gods | light rays, rising motes |
+| Cosmic Sanctuary | the nebula, stars, the dome's glow |
+| Dimension X | the portal swirl, its core, floating shards |
+
+**To change a house:** edit its shapes in `tier<N>.ts`, run
+`node --no-warnings scripts/render-companion.mjs docs/companion houses`, and
+look at the sheets.
+
+**How the house art was reviewed**
+
+| Round | What was wrong | What changed |
+|---|---|---|
+| 1 | The resting dog was bigger than the doorways and covered their frames. The Beach Shack palm ran off the right edge. The Cozy Den smoke was too small to see. | (first render) |
+| 2 | Fixed: she is drawn smaller inside (46 units, down from 56), so she sits within the door frame. Palm moved in. Bigger smoke puffs. Checked dark coats against dark doorways: the lamp glow in each doorway keeps them readable. | rest sizes, palm, smoke |
 
 ## How to change her
 

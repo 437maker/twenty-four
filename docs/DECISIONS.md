@@ -411,3 +411,58 @@ Each entry says what was decided, why, and how to reverse it.
   animates smoothly. That is check W3 in `docs/MANUAL_CHECKS.md`.
 - **If it is broken on the phone:** republish the previous update:
   `npx eas-cli update:republish --group b40b33db-969b-4176-8ccf-6902851350ef`
+
+---
+
+## Houses run (2026-11-14)
+
+### D42. A house is a scene, and a scene is data
+- **What:** each of the 15 houses is a `HouseDef` in
+  `app/components/companion/houses/` (five files, three houses each). It
+  holds a still backdrop, the still house, a list of ambient elements, and
+  three points: where the dog stands, the door, and where she rests inside.
+  Everything is drawn in a 300 x 200 box with the same shape vocabulary as
+  the dog.
+- **Why:** the same reason as breeds (D28). The yard, the Shop, the PNG
+  script, and the tests all read one list, so a 16th house is one new object.
+- **Replaces:** D36. "Show in yard" now changes the drawing, not only a stage.
+
+### D43. One clock drives every ambient loop
+- **What:** a single Reanimated value runs 0 to 1 once a minute. Each ambient
+  element is its own layer and turns that clock into its own loop with one
+  of six motions: rise, scroll, sway, spin, pulse, bob. A loop's period must
+  divide 60 seconds (a test checks it) so nothing jumps when the clock wraps.
+- **Why:** the performance rule. The backdrop and the house are drawn once;
+  only transforms and opacity change per frame, on the UI thread.
+- **Limit:** a house has at most five ambient layers (a test checks it).
+
+### D44. The scene fills the yard like a photo, with a limit on cropping
+- **What:** `sceneFit()` scales the scene to cover the view, anchored to the
+  bottom. It never crops more than the top 50 units; on a wider view the
+  scene stops growing and plain sky and ground show at the sides.
+- **Why:** yards differ in shape between phones. Anchoring to the bottom
+  keeps the dog and the door on screen. The crop limit keeps roofs visible.
+- **Effect to know about:** on the smallest phones the top of the tallest
+  houses (the Sky Tower's beacon) is cut off.
+
+### D45. Shop house cards are still; the animated preview is one tap away
+- **What:** each House card shows the scene and the user's dog as two still
+  pictures. Tapping the picture opens a pop-up with the animated scene and
+  the animated dog, plus Buy or Show in yard.
+- **Why:** D32 again. Fifteen animated scenes in a scrolling list would be
+  about 100 moving layers. One animated scene at a time is cheap.
+
+### D46. At night, daytime scenes get a blue tint; dark scenes are left alone
+- **What:** after 10pm the yard lays a see-through dark blue over houses
+  whose scene is daytime. Space, the sea floor, the lair, the sanctuary, and
+  Dimension X are already dark and are not tinted.
+- **Why:** fifteen night versions of the art were out of scope. A tint keeps
+  the day and night feeling for almost no cost.
+
+### D47. With no house owned, the yard is exactly as before
+- **What:** the five-stage yard drawn with plain views is still there and is
+  used when no House item is owned. `houseTierToShow()` is kept because it
+  still decides that stage. The new `houseToShow()` picks the house: the one
+  chosen with "Show in yard", otherwise the highest tier owned, and the
+  pricier one if two share a tier.
+- **Why:** the spec says to keep the default yard.
