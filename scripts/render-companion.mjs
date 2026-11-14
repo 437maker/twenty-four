@@ -1,11 +1,22 @@
 // scripts/render-companion.mjs — renders the companion to PNG files.
 //
-// Why: the dog is drawn in code and nobody can see code. This script draws the
-// key pose of every state on each of the app's three backgrounds, at 64px and
-// 240px, so the drawing can be looked at and criticised on the laptop.
+// Why: the dogs and everything they wear are drawn in code, and nobody can
+// see code. This script draws them so the art can be looked at and criticised
+// on the laptop.
 //
-// Run:   node scripts/render-companion.mjs            (writes docs/companion/)
-//        node scripts/render-companion.mjs some/dir   (writes somewhere else)
+// What it writes (into docs/companion/ by default):
+//   <state>-<background>-<size>.png   the Maltese, one image per combination
+//   sheet-240.png, sheet-64.png       the Maltese: every state on every background
+//   items/items-1..3.png              every wearable item on the Maltese, idle and happy
+//   items/max-outfit.png              one item in every slot, all four states
+//   breeds/<breed>/sheet-240.png      each breed: every state on every background
+//   breeds/<breed>/sheet-64.png       the same at the smallest size
+//   breeds/<breed>/max-outfit.png     each breed fully dressed, all four states
+//
+// Run:   npm run render:companion
+//        node scripts/render-companion.mjs some/dir            (write elsewhere)
+//        node scripts/render-companion.mjs some/dir items      (only the item sheets)
+//        node scripts/render-companion.mjs some/dir corgi      (only one breed)
 //
 // Needs Node 22.15+ (it imports the app's TypeScript files directly; Node
 // strips the types). The only package it uses is @resvg/resvg-js, a
@@ -35,73 +46,129 @@ const fromApp = (p) => import(pathToFileURL(path.join(root, 'app/components/comp
 const { companionSvgMarkup, companionInnerMarkup } = await fromApp('svgMarkup.ts');
 const { BACKDROPS } = await fromApp('palette.ts');
 const { outlineScaleForSize } = await fromApp('poses.ts');
+const { BREEDS } = await fromApp('breeds/index.ts');
+const { ITEM_SLOTS, MAX_OUTFIT } = await fromApp('items/itemSlots.ts');
 
 const outDir = path.resolve(root, process.argv[2] ?? 'docs/companion');
-mkdirSync(outDir, { recursive: true });
+const only = process.argv[3] ?? 'all'; // 'all' | 'items' | a breed id
 
 const STATES = ['idle', 'happy', 'celebrating', 'sleeping'];
 const BACKS = ['warmWhite', 'day', 'night'];
 const SIZES = [64, 240];
 
-function png(svg, width) {
-  return new Resvg(svg, { fitTo: { mode: 'width', value: width } }).render().asPng();
-}
-
 let count = 0;
 function save(name, svg, width) {
-  writeFileSync(path.join(outDir, name), png(svg, width));
+  const file = path.join(outDir, name);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, new Resvg(svg, { fitTo: { mode: 'width', value: width } }).render().asPng());
   count += 1;
 }
 
-// 1. One PNG per state, background, and size.
-for (const state of STATES) {
-  for (const backdrop of BACKS) {
-    for (const size of SIZES) {
-      save(`${state}-${backdrop}-${size}.png`, companionSvgMarkup({ state, size, backdrop }), size);
-    }
-  }
+let cellId = 0;
+// One dog in a 200 x 200 cell at (col, row) of a grid.
+function cell(col, row, backdrop, opts) {
+  const b = BACKDROPS[backdrop];
+  return (
+    `<svg x="${col * 200}" y="${row * 200}" width="200" height="200" viewBox="0 0 200 200">` +
+    `<rect width="200" height="200" fill="${b.sky}"/><rect y="150" width="200" height="50" fill="${b.ground}"/>` +
+    companionInnerMarkup({ ...opts, idPrefix: `k${cellId++}` }) +
+    `</svg>`
+  );
+}
+function grid(cols, rows, inner, cellPx) {
+  const w = cols * 200;
+  const h = rows * 200;
+  return {
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}</svg>`,
+    width: cols * cellPx,
+  };
 }
 
-// 2. Contact sheets: every state (columns) on every background (rows).
-function sheet(cell) {
-  const cols = STATES.length;
-  const rows = BACKS.map((b) => ({ backdrop: b }));
+// Every state (columns) on every background (rows).
+function stateSheet(breed, cellPx) {
   let inner = '';
-  rows.forEach((row, r) => {
+  BACKS.forEach((backdrop, r) => {
     STATES.forEach((state, c) => {
-      const b = BACKDROPS[row.backdrop];
-      inner +=
-        `<svg x="${c * 200}" y="${r * 200}" width="200" height="200" viewBox="0 0 200 200">` +
-        `<rect width="200" height="200" fill="${b.sky}"/><rect y="150" width="200" height="50" fill="${b.ground}"/>` +
-        companionInnerMarkup({ state, outlineScale: outlineScaleForSize(cell) }) +
-        `</svg>`;
+      inner += cell(c, r, backdrop, { state, breed, outlineScale: outlineScaleForSize(cellPx) });
     });
   });
-  const w = cols * 200;
-  const h = rows.length * 200;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}</svg>`;
-  return { svg, width: cols * cell };
+  return grid(STATES.length, BACKS.length, inner, cellPx);
 }
 
-const big = sheet(240);
-save('sheet-240.png', big.svg, big.width);
-const small = sheet(64);
-save('sheet-64.png', small.svg, small.width);
+// One item in every slot, all four states, on day and night.
+function maxOutfitSheet(breed) {
+  let inner = '';
+  ['day', 'night'].forEach((backdrop, r) => {
+    STATES.forEach((state, c) => {
+      inner += cell(c, r, backdrop, { state, breed, equipped: MAX_OUTFIT });
+    });
+  });
+  return grid(STATES.length, 2, inner, 240);
+}
 
-// 3. Accessories the rig can draw, on the idle pose.
-const ACCESSORIES = ['acc_party_hat', 'outfit_cozy_sweater', 'acc_bow_tie', 'acc_golden_collar'];
-let accInner = '';
-ACCESSORIES.forEach((id, c) => {
-  accInner +=
-    `<svg x="${c * 200}" y="0" width="200" height="200" viewBox="0 0 200 200">` +
-    `<rect width="200" height="200" fill="${BACKDROPS.day.sky}"/><rect y="150" width="200" height="50" fill="${BACKDROPS.day.ground}"/>` +
-    companionInnerMarkup({ state: c === 1 ? 'happy' : 'idle', accessory: id }) +
-    `</svg>`;
-});
-save(
-  'accessories.png',
-  `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">${accInner}</svg>`,
-  ACCESSORIES.length * 240,
-);
+// ── The Maltese's own images (docs/companion/*.png) ──
+if (only === 'all' || only === 'maltese') {
+  for (const state of STATES) {
+    for (const backdrop of BACKS) {
+      for (const size of SIZES) {
+        save(`${state}-${backdrop}-${size}.png`, companionSvgMarkup({ state, size, backdrop }), size);
+      }
+    }
+  }
+  const big = stateSheet('maltese', 240);
+  save('sheet-240.png', big.svg, big.width);
+  const small = stateSheet('maltese', 64);
+  save('sheet-64.png', small.svg, small.width);
+}
+
+// ── Every item on the Maltese: idle and happy side by side ──
+if (only === 'all' || only === 'items') {
+  const ids = Object.keys(ITEM_SLOTS);
+  const PER_SHEET = 10; // 10 items = 20 cells = 4 columns x 5 rows
+  for (let sheet = 0; sheet * PER_SHEET < ids.length; sheet++) {
+    const batch = ids.slice(sheet * PER_SHEET, (sheet + 1) * PER_SHEET);
+    let inner = '';
+    batch.forEach((id, i) => {
+      const equipped = { [ITEM_SLOTS[id]]: id };
+      const row = Math.floor(i / 2);
+      const col = (i % 2) * 2;
+      inner += cell(col, row, 'day', { state: 'idle', equipped });
+      inner += cell(col + 1, row, 'day', { state: 'happy', equipped });
+    });
+    const g = grid(4, Math.ceil(batch.length / 2), inner, 180);
+    save(`items/items-${sheet + 1}.png`, g.svg, g.width);
+  }
+  const max = maxOutfitSheet('maltese');
+  save('items/max-outfit.png', max.svg, max.width);
+  // The smallest size, fully dressed: does it still read?
+  let tiny = '';
+  STATES.forEach((state, c) => {
+    tiny += cell(c, 0, 'day', { state, equipped: MAX_OUTFIT, outlineScale: outlineScaleForSize(64) });
+  });
+  const t = grid(4, 1, tiny, 64);
+  save('items/max-outfit-64.png', t.svg, t.width);
+}
+
+// ── Every breed ──
+for (const breed of BREEDS) {
+  if (only !== 'all' && only !== breed.id) continue;
+  const big = stateSheet(breed.id, 240);
+  save(`breeds/${breed.id}/sheet-240.png`, big.svg, big.width);
+  const small = stateSheet(breed.id, 64);
+  save(`breeds/${breed.id}/sheet-64.png`, small.svg, small.width);
+  const max = maxOutfitSheet(breed.id);
+  save(`breeds/${breed.id}/max-outfit.png`, max.svg, max.width);
+}
+
+// ── All breeds side by side (idle, day) ──
+if (only === 'all' || only === 'lineup') {
+  let inner = '';
+  BREEDS.forEach((breed, c) => {
+    inner += cell(c, 0, 'day', { state: 'idle', breed: breed.id });
+    inner += cell(c, 1, 'day', { state: 'happy', breed: breed.id, equipped: MAX_OUTFIT });
+  });
+  const g = grid(BREEDS.length, 2, inner, 200);
+  save('breeds/lineup.png', g.svg, g.width);
+}
 
 console.log(`Wrote ${count} PNG files to ${path.relative(root, outDir) || '.'}`);

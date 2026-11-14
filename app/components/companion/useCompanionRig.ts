@@ -103,7 +103,8 @@ export interface RigOptions {
   state: NovaState;
   reduceMotion: boolean;
   paused: boolean;   // true while the screen is not focused
-  hatOn: boolean;    // party hat showing (celebrating, or the shop item)
+  hatOn: boolean;    // the celebration party hat is showing
+  hasFx?: boolean;   // she is wearing an item with a looping effect (glow, halo, runes)
 }
 
 export interface CompanionRig {
@@ -113,13 +114,16 @@ export interface CompanionRig {
   heart: SharedValue<number>;   // 0..1 progress of the tap heart (0 and 1 = hidden)
   sparks: SharedValue<number>;  // 0..1 looping progress of the celebration sparkles
   zzz: SharedValue<number>;     // 0..1 looping progress of the sleeping "z"s
+  fx: SharedValue<number>;      // 0..1 looping progress for item effects (0 when still)
   tap: () => void;
   petStart: () => void;
   petMove: (side: number) => void; // -1 = finger at her left edge, +1 = right edge
   petEnd: () => void;
 }
 
-export function useCompanionRig({ state, reduceMotion, paused, hatOn }: RigOptions): CompanionRig {
+export const ITEM_FX_LOOP_MS = 6000;
+
+export function useCompanionRig({ state, reduceMotion, paused, hatOn, hasFx = false }: RigOptions): CompanionRig {
   // ── Key pose ──
   const from = useSharedValue<Pose>(POSES[state]);
   const to = useSharedValue<Pose>(POSES[state]);
@@ -150,6 +154,7 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn }: RigOptio
   const heart = useSharedValue(0);
   const sparks = useSharedValue(0);
   const zzz = useSharedValue(0);
+  const fx = useSharedValue(0);
 
   // Key pose + offsets, computed on the UI thread every frame.
   const pose = useDerivedValue<Pose>(() => {
@@ -242,6 +247,7 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn }: RigOptio
       [breath, wag, hop, squash, spin, earL, earR, knot, tilt, blink, petWag].forEach((sv) => settle(sv));
       sparks.value = 0;
       zzz.value = 0;
+      fx.value = 0;
     };
 
     if (paused) {
@@ -254,6 +260,13 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn }: RigOptio
       stopAll();
       if (state !== 'sleeping' && state !== 'celebrating') every(REDUCED_BLINK_RANGE_MS, doBlink);
       return stopAll;
+    }
+
+    // Item effects (glow pulse, halo bob, rune spin) run in every state, but
+    // only while motion is allowed: this line is never reached under Reduce Motion.
+    if (hasFx) {
+      fx.value = 0;
+      fx.value = withRepeat(withTiming(1, { duration: ITEM_FX_LOOP_MS, easing: Easing.linear }), -1, false);
     }
 
     if (state === 'idle') {
@@ -313,7 +326,7 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn }: RigOptio
 
     return stopAll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, reduceMotion, paused]);
+  }, [state, reduceMotion, paused, hasFx]);
 
   // ── Tap: squash, pop back with an overshoot, wiggle, and a heart ──
   const tap = useCallback(() => {
@@ -351,7 +364,7 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn }: RigOptio
   }, []);
 
   return useMemo(
-    () => ({ pose, fade, hat, heart, sparks, zzz, tap, petStart, petMove, petEnd }),
+    () => ({ pose, fade, hat, heart, sparks, zzz, fx, tap, petStart, petMove, petEnd }),
     // Shared values and callbacks are stable for the life of the component.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],

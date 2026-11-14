@@ -1,6 +1,7 @@
-// Companion.tsx — the animated Maltese. This is the only file screens import.
+// Companion.tsx — the animated companion. This is the only file screens import.
 //
-//   <Companion state="idle" size={150} reduceMotion={false} onPress={...} />
+//   <Companion state="idle" size={150} reduceMotion={false}
+//              breed="corgi" equipped={{ head: 'acc_party_hat' }} onPress={...} />
 //
 // How she is built: about a dozen see-through layers stacked on top of each
 // other, one per moving part (tail, body, each ear, eyelids...). Every layer
@@ -8,6 +9,12 @@
 // (useCompanionRig) produces a pose on the UI thread each frame, and each
 // layer turns its slice of that pose into a transform around its own pivot
 // (ear base, tail base, neck, eyelid hinge).
+//
+// What she wears: scene.ts decides which drawings go on which layer. A hat is
+// drawn on the layer that follows the top of her head, a staff on the layer
+// that follows her paw, wings on a layer that follows her body. Because an
+// item lives on the layer of the part it is attached to, it cannot drift off
+// that part, whatever the animation does.
 //
 // Why layers of views instead of animating inside one SVG: moving a view with
 // a transform is the path Reanimated is built for. It runs on the UI thread
@@ -21,11 +28,15 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { NavigationContext } from '@react-navigation/native';
 
 import type { NovaState } from '../../types';
+import { getBreed } from './breeds';
+import { LayerSvg } from './CompanionSvg';
+import type { Equipped } from './items/itemSlots';
 import { PALETTE } from './palette';
-import { HEART, PARTS, ZEE, sparkle } from './parts';
-import { PartLayer, neckShapes } from './MalteseSvg';
-import { REST_POSE, VIEWBOX, accessoryLook, outlineScaleForSize, partTransform } from './poses';
-import type { PartName, Pose } from './poses';
+import { REST_POSE, VIEWBOX, outlineScaleForSize, partTransform } from './poses';
+import type { PartName, Pose, RigPivots } from './poses';
+import { buildScene, sceneKey } from './scene';
+import { HEART, ZEE, sparkle } from './shapes';
+import type { Drawable } from './shapes';
 import { PET_HOLD_MS, useCompanionRig } from './useCompanionRig';
 import { lightTap } from './haptics';
 
@@ -33,7 +44,12 @@ export interface CompanionProps {
   state: NovaState;
   size: number;
   onPress?: () => void;
-  accessory?: string | null;  // a shop item id, e.g. "acc_party_hat"
+  /** Called after a press-and-hold of about 0.6s (Home uses it to open the breed picker). */
+  onLongPress?: () => void;
+  /** Which dog. A breed id from breeds/index.ts; unknown or missing = Maltese. */
+  breed?: string | null;
+  /** What she is wearing: one shop item id per slot. */
+  equipped?: Equipped;
   reduceMotion: boolean;
   /** false = no tap or petting (use inside React Native <Modal>s). Default true. */
   interactive?: boolean;
@@ -45,6 +61,8 @@ export interface CompanionProps {
 // The share of her height (from the top) that counts as "her head" for petting.
 const HEAD_ZONE = 0.68;
 const SPARKLE_COUNT = 8;
+const NOTHING: Equipped = {};
+const fill = StyleSheet.absoluteFill;
 
 // True while the screen this component sits on is the focused one. Outside a
 // navigator (a test, a plain modal) there is nothing to ask, so it is true.
@@ -66,14 +84,14 @@ function useScreenFocused(): boolean {
 
 // ─── One animated layer of the rig ────────────────────────────────────────────
 function RigLayer({
-  part, pose, k, children,
+  part, pose, k, pv, children,
 }: {
-  part: PartName; pose: DerivedValue<Pose>; k: number; children: React.ReactNode;
+  part: PartName; pose: DerivedValue<Pose>; k: number; pv: RigPivots; children: React.ReactNode;
 }) {
-  // The pivot never changes, so it is read once from the rest pose.
-  const pivot = useMemo(() => partTransform(part, REST_POSE), [part]);
+  // The pivot never changes for a breed, so it is read once from the rest pose.
+  const pivot = useMemo(() => partTransform(part, REST_POSE, pv), [part, pv]);
   const style = useAnimatedStyle(() => {
-    const t = partTransform(part, pose.value);
+    const t = partTransform(part, pose.value, pv);
     return {
       opacity: t.opacity,
       transform: [
@@ -88,7 +106,7 @@ function RigLayer({
   return (
     <Animated.View
       pointerEvents="none"
-      style={[StyleSheet.absoluteFill, { transformOrigin: [pivot.px * k, pivot.py * k, 0] }, style]}
+      style={[fill, { transformOrigin: [pivot.px * k, pivot.py * k, 0] }, style]}
     >
       {children}
     </Animated.View>
@@ -99,9 +117,58 @@ function RigLayer({
 function FadeLayer({ amount, invert, children }: { amount: SharedValue<number>; invert?: boolean; children: React.ReactNode }) {
   const style = useAnimatedStyle(() => ({ opacity: invert ? 1 - amount.value : amount.value }));
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
+    <Animated.View pointerEvents="none" style={[fill, style]}>
       {children}
     </Animated.View>
+  );
+}
+
+// An item with a looping effect (a glow that pulses, a halo that bobs, a rune
+// circle that turns). `fx` runs 0..1 over six seconds while motion is allowed
+// and sits at 0 under Reduce Motion, which leaves the item perfectly still.
+function FxLayer({ dr, fx, k, children }: { dr: Drawable; fx: SharedValue<number>; k: number; children: React.ReactNode }) {
+  const kind = dr.fx;
+  const style = useAnimatedStyle(() => {
+    const v = fx.value;
+    const wave = Math.sin(v * Math.PI * 4); // two gentle waves per loop
+    if (kind === 'pulse') return { opacity: 0.86 + 0.14 * wave, transform: [{ translateY: 0 }, { rotate: '0deg' }, { scale: 1 + 0.04 * wave }] };
+    if (kind === 'bob') return { opacity: 1, transform: [{ translateY: wave * 2.2 * k }, { rotate: '0deg' }, { scale: 1 }] };
+    return { opacity: 1, transform: [{ translateY: 0 }, { rotate: `${v * 360}deg` }, { scale: 1 }] };
+  });
+  const origin = dr.at ? [dr.at.x * k, dr.at.y * k, 0] : [100 * k, 100 * k, 0];
+  return (
+    <Animated.View pointerEvents="none" style={[fill, { transformOrigin: origin }, style]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// Draws a list of Drawables as stacked SVG layers. Plain drawables that sit
+// next to each other share one SVG; a drawable with an effect gets its own
+// animated layer.
+function Layers({
+  list, size, k, o, fx, id,
+}: {
+  list: readonly Drawable[]; size: number; k: number; o: number; fx: SharedValue<number>; id: string;
+}) {
+  if (list.length === 0) return null;
+  const groups: Drawable[][] = [];
+  for (const dr of list) {
+    const last = groups[groups.length - 1];
+    if (!dr.fx && last && !last[0].fx) last.push(dr);
+    else groups.push([dr]);
+  }
+  return (
+    <>
+      {groups.map((group) => {
+        const svg = <LayerSvg drawables={group} size={size} outlineScale={o} idPrefix={id} />;
+        return group[0].fx ? (
+          <FxLayer key={group[0].key} dr={group[0]} fx={fx} k={k}>{svg}</FxLayer>
+        ) : (
+          <View key={group[0].key} pointerEvents="none" style={fill}>{svg}</View>
+        );
+      })}
+    </>
   );
 }
 
@@ -110,6 +177,9 @@ function FadeLayer({ amount, invert, children }: { amount: SharedValue<number>; 
 // placed with a transform. `k` converts drawing units to pixels.
 const FX_BOX = 24;
 const FX_VIEWBOX = `${-FX_BOX / 2} ${-FX_BOX / 2} ${FX_BOX} ${FX_BOX}`;
+
+const ZEE_LAYER: Drawable[] = [{ key: 'zee', shapes: ZEE }];
+const HEART_LAYER: Drawable[] = [{ key: 'heart', shapes: HEART }];
 
 function fxFrame(k: number) {
   return { position: 'absolute' as const, left: 0, top: 0, width: FX_BOX * k, height: FX_BOX * k };
@@ -133,14 +203,14 @@ function Zee({ index, zzz, k, still }: { index: number; zzz: SharedValue<number>
   });
   return (
     <Animated.View pointerEvents="none" style={[fxFrame(k), style]}>
-      <PartLayer shapes={ZEE} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
+      <LayerSvg drawables={ZEE_LAYER} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
     </Animated.View>
   );
 }
 
 // One celebration sparkle: pops out from her, grows, and fades.
 function Sparkle({ index, sparks, k }: { index: number; sparks: SharedValue<number>; k: number }) {
-  const shapes = useMemo(() => sparkle(PALETTE.sparkles[index % PALETTE.sparkles.length]), [index]);
+  const layer = useMemo<Drawable[]>(() => [{ key: 'sparkle', shapes: sparkle(PALETTE.sparkles[index % PALETTE.sparkles.length]) }], [index]);
   const style = useAnimatedStyle(() => {
     const ph = (sparks.value + index * 0.371) % 1;
     const angle = (index / SPARKLE_COUNT) * Math.PI * 2 + 0.4;
@@ -160,7 +230,7 @@ function Sparkle({ index, sparks, k }: { index: number; sparks: SharedValue<numb
   });
   return (
     <Animated.View pointerEvents="none" style={[fxFrame(k), style]}>
-      <PartLayer shapes={shapes} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
+      <LayerSvg drawables={layer} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
     </Animated.View>
   );
 }
@@ -184,30 +254,40 @@ function Heart({ heart, k, still }: { heart: SharedValue<number>; k: number; sti
   });
   return (
     <Animated.View pointerEvents="none" style={[fxFrame(k), style]}>
-      <PartLayer shapes={HEART} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
+      <LayerSvg drawables={HEART_LAYER} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
     </Animated.View>
   );
 }
 
 // ─── The component ────────────────────────────────────────────────────────────
 export default function Companion({
-  state, size, onPress, accessory = null, reduceMotion, interactive = true, label, testID,
+  state, size, onPress, onLongPress, breed, equipped = NOTHING, reduceMotion, interactive = true, label, testID,
 }: CompanionProps) {
   const focused = useScreenFocused();
-  const look = accessoryLook(accessory, state);
-  const rig = useCompanionRig({ state, reduceMotion, paused: !focused, hatOn: look.hat });
+  const def = getBreed(breed);
+  const pv = def.pivots;
+  const key = sceneKey(def.id, state, equipped);
+  // What goes on each layer. Rebuilt only when the breed, the state, or the
+  // outfit changes — never per frame.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const scene = useMemo(() => buildScene(def, state, equipped), [key]);
+  const hasFx = useMemo(
+    () => [scene.aura, scene.back, scene.face, scene.headItem, scene.held].some((l) => l.some((d) => !!d.fx)),
+    [scene],
+  );
+  const rig = useCompanionRig({ state, reduceMotion, paused: !focused, hatOn: scene.celebrationHat, hasFx });
 
   const k = size / VIEWBOX;                // drawing units → pixels
   const o = outlineScaleForSize(size);     // thicker outline when small
-  const neck = useMemo(() => neckShapes(look.neck), [look.neck]);
-  const bodyShapes = useMemo(() => [...PARTS.body, ...neck], [neck]);
-  const headShapes = useMemo(() => [...PARTS.head, ...PARTS.face], []);
+  const id = `c-${def.id}`;
 
   const fadeStyle = useAnimatedStyle(() => ({ opacity: rig.fade.value }));
 
   // Latest onPress without rebuilding the gesture.
   const onPressRef = useRef(onPress);
   onPressRef.current = onPress;
+  const onLongPressRef = useRef(onLongPress);
+  onLongPressRef.current = onLongPress;
 
   // Tap, and a horizontal stroke across her head ("petting"). Callbacks run
   // on the JS thread (runOnJS): they only *start* animations, which then play
@@ -253,7 +333,16 @@ export default function Companion({
         if (pet.active) rig.petEnd();
         pet.active = false;
       });
-    return Gesture.Simultaneous(tap, stroke);
+    // Press and hold. A tap gives up at 400ms, so the two never both fire.
+    const hold = Gesture.LongPress()
+      .runOnJS(true)
+      .minDuration(600)
+      .onStart(() => {
+        if (!onLongPressRef.current) return;
+        lightTap();
+        onLongPressRef.current();
+      });
+    return Gesture.Simultaneous(tap, stroke, hold);
   }, [rig, size]);
 
   const dog = (
@@ -265,63 +354,45 @@ export default function Companion({
       accessibilityRole={onPress ? 'button' : 'image'}
       accessibilityLabel={label ?? `Companion is ${state}`}
     >
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fadeStyle]}>
-        <RigLayer part="shadow" pose={rig.pose} k={k}>
-          <PartLayer shapes={PARTS.shadow} size={size} />
-        </RigLayer>
+      <Animated.View pointerEvents="none" style={[fill, fadeStyle]}>
+        <RigLayer part="shadow" pose={rig.pose} k={k} pv={pv}><Layers list={scene.shadow} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
 
-        <RigLayer part="root" pose={rig.pose} k={k}>
-          <RigLayer part="tail" pose={rig.pose} k={k}>
-            <PartLayer shapes={PARTS.tail} size={size} outlineScale={o} />
-          </RigLayer>
-          <RigLayer part="body" pose={rig.pose} k={k}>
-            <PartLayer shapes={bodyShapes} size={size} outlineScale={o} />
-          </RigLayer>
-          <RigLayer part="pawL" pose={rig.pose} k={k}>
-            <PartLayer shapes={PARTS.pawL} size={size} outlineScale={o} />
-          </RigLayer>
-          <RigLayer part="pawR" pose={rig.pose} k={k}>
-            <PartLayer shapes={PARTS.pawR} size={size} outlineScale={o} />
-          </RigLayer>
+        <RigLayer part="root" pose={rig.pose} k={k} pv={pv}>
+          {/* Behind everything: aura, then things worn on the back */}
+          <Layers list={scene.aura} size={size} k={k} o={o} fx={rig.fx} id={id} />
+          {scene.back.length > 0 && <RigLayer part="body" pose={rig.pose} k={k} pv={pv}><Layers list={scene.back} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>}
+          <RigLayer part="tail" pose={rig.pose} k={k} pv={pv}><Layers list={scene.tail} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+          {/* Body: fur, markings, outfit (clipped to the body), outline, neck items */}
+          <RigLayer part="body" pose={rig.pose} k={k} pv={pv}><Layers list={scene.body} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+          <RigLayer part="pawL" pose={rig.pose} k={k} pv={pv}><Layers list={scene.pawL} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+          <RigLayer part="pawR" pose={rig.pose} k={k} pv={pv}><Layers list={scene.pawR} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
 
           {/* Everything on the head moves with the head, then on its own. */}
-          <RigLayer part="head" pose={rig.pose} k={k}>
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <PartLayer shapes={headShapes} size={size} outlineScale={o} />
-            </View>
-            <RigLayer part="eyesOpen" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.eyesOpen} size={size} />
-            </RigLayer>
-            <RigLayer part="lids" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.lids} size={size} />
-            </RigLayer>
-            <RigLayer part="eyesHappy" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.eyesHappy} size={size} />
-            </RigLayer>
-            <RigLayer part="mouthClosed" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.mouthClosed} size={size} />
-            </RigLayer>
-            <RigLayer part="mouthOpen" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.mouthOpen} size={size} />
-            </RigLayer>
-            <RigLayer part="earL" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.earL} size={size} outlineScale={o} />
-            </RigLayer>
-            <RigLayer part="earR" pose={rig.pose} k={k}>
-              <PartLayer shapes={PARTS.earR} size={size} outlineScale={o} />
-            </RigLayer>
-            <RigLayer part="knot" pose={rig.pose} k={k}>
-              <FadeLayer amount={rig.hat} invert>
-                <PartLayer shapes={PARTS.knotTuft} size={size} outlineScale={o} />
-              </FadeLayer>
-              <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-                <PartLayer shapes={PARTS.bow} size={size} />
-              </View>
-              <FadeLayer amount={rig.hat}>
-                <PartLayer shapes={PARTS.hat} size={size} />
-              </FadeLayer>
+          <RigLayer part="head" pose={rig.pose} k={k} pv={pv}>
+            <Layers list={scene.head} size={size} k={k} o={o} fx={rig.fx} id={id} />
+            <RigLayer part="eyesOpen" pose={rig.pose} k={k} pv={pv}><Layers list={scene.eyesOpen} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            <RigLayer part="lids" pose={rig.pose} k={k} pv={pv}><Layers list={scene.lids} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            <RigLayer part="eyesHappy" pose={rig.pose} k={k} pv={pv}><Layers list={scene.eyesHappy} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            <RigLayer part="mouthClosed" pose={rig.pose} k={k} pv={pv}><Layers list={scene.mouthClosed} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            <RigLayer part="mouthOpen" pose={rig.pose} k={k} pv={pv}><Layers list={scene.mouthOpen} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            {/* Face items sit under the ears, so sunglasses arms tuck behind them */}
+            <Layers list={scene.face} size={size} k={k} o={o} fx={rig.fx} id={id} />
+            <RigLayer part="earL" pose={rig.pose} k={k} pv={pv}><Layers list={scene.earL} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            <RigLayer part="earR" pose={rig.pose} k={k} pv={pv}><Layers list={scene.earR} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            <RigLayer part="knot" pose={rig.pose} k={k} pv={pv}>
+              {!scene.tuftHidden && scene.knotTuft.length > 0 && (
+                <FadeLayer amount={rig.hat} invert><Layers list={scene.knotTuft} size={size} k={k} o={o} fx={rig.fx} id={id} /></FadeLayer>
+              )}
+              <Layers list={scene.knotBase} size={size} k={k} o={o} fx={rig.fx} id={id} />
+              <Layers list={scene.headItem} size={size} k={k} o={o} fx={rig.fx} id={id} />
+              {scene.partyHat.length > 0 && (
+                <FadeLayer amount={rig.hat}><Layers list={scene.partyHat} size={size} k={k} o={o} fx={rig.fx} id={id} /></FadeLayer>
+              )}
             </RigLayer>
           </RigLayer>
+
+          {/* Held items ride on the right paw and are drawn in front of everything */}
+          {scene.held.length > 0 && <RigLayer part="pawR" pose={rig.pose} k={k} pv={pv}><Layers list={scene.held} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>}
         </RigLayer>
 
         {state === 'sleeping' &&

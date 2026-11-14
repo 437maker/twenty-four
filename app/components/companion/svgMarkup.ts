@@ -1,22 +1,32 @@
 // svgMarkup.ts — draws the companion as an SVG string.
 //
-// Used by scripts/render-companion.mjs to make PNGs of every state, so the
-// drawing can be reviewed on the laptop. It reads the same shape data and the
-// same pose math as the animated rig, so what the PNG shows is what the phone
-// draws at the key pose of each state.
+// Used by scripts/render-companion.mjs to make PNGs of every breed, state,
+// and item, so the drawings can be reviewed on the laptop. It reads the same
+// scene (scene.ts), shape data, and pose math as the animated rig, so what
+// the PNG shows is what the phone draws at the key pose of each state.
 
 import type { NovaState } from '../../types';
+import { getBreed } from './breeds/index';
+import type { BreedDef } from './breeds/types';
+import type { Equipped } from './items/itemSlots';
 import { BACKDROPS, PALETTE } from './palette';
 import type { BackdropName } from './palette';
-import { PARTS, HEART, ZEE, sparkle } from './parts';
-import type { Shape } from './parts';
-import { POSES, accessoryLook, outlineScaleForSize, partTransform } from './poses';
+import { POSES, outlineScaleForSize, partTransform } from './poses';
 import type { PartName, Pose } from './poses';
+import { buildScene } from './scene';
+import { ZEE, sparkle } from './shapes';
+import type { Drawable, Shape } from './shapes';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-function shapeMarkup(s: Shape, outlineScale: number): string {
-  const sw = (s.sw ?? 1) * (s.stroke === PALETTE.outline ? outlineScale : 1);
+// Per-render state (this module is synchronous, so module variables are safe).
+let outlineScale = 1;
+let clipDefs: string[] = [];
+let clipCount = 0;
+let clipPrefix = 'c';
+
+function shapeMarkup(s: Shape): string {
+  const sw = (s.sw ?? 1) * (s.ol ? outlineScale : 1);
   const paint =
     ` fill="${s.fill ?? 'none'}"` +
     (s.stroke ? ` stroke="${s.stroke}" stroke-width="${r2(sw)}" stroke-linecap="round" stroke-linejoin="round"` : '') +
@@ -26,13 +36,24 @@ function shapeMarkup(s: Shape, outlineScale: number): string {
   return `<circle cx="${s.cx}" cy="${s.cy}" r="${s.r}"${paint}/>`;
 }
 
-// Set once per render by companionInnerMarkup (this module is synchronous).
-let currentOutlineScale = 1;
-const shapes = (list: readonly Shape[]) => list.map((s) => shapeMarkup(s, currentOutlineScale)).join('');
+const shapes = (list: readonly Shape[]) => list.map(shapeMarkup).join('');
+
+function drawable(dr: Drawable): string {
+  let inner = shapes(dr.shapes); // already placed at its anchor by scene.ts
+  if (dr.clip) {
+    const id = `${clipPrefix}${clipCount++}`;
+    clipDefs.push(`<clipPath id="${id}"><path d="${dr.clip}"/></clipPath>`);
+    inner = `<g clip-path="url(#${id})">${inner}</g>`;
+  }
+  return inner;
+}
+
+const drawables = (list: readonly Drawable[]) => list.map(drawable).join('');
 
 // One rig part: a <g> carrying the transform that the pose gives it.
-function part(name: PartName, pose: Pose, inner: string): string {
-  const t = partTransform(name, pose);
+function part(name: PartName, pose: Pose, breed: BreedDef, inner: string): string {
+  if (!inner) return '';
+  const t = partTransform(name, pose, breed.pivots);
   if (t.opacity <= 0.001) return '';
   const tf =
     `translate(${r2(t.tx)} ${r2(t.ty)}) rotate(${r2(t.rot)} ${t.px} ${t.py}) ` +
@@ -48,36 +69,43 @@ function at(x: number, y: number, scale: number, opacity: number, inner: string)
 export interface MarkupOptions {
   state: NovaState;
   size: number;
-  accessory?: string | null;
+  breed?: string | null;          // breed id (default: Maltese)
+  equipped?: Equipped;            // what she is wearing
   backdrop?: BackdropName | null; // null = transparent
   pose?: Pose;                    // override the state's key pose
   effects?: boolean;              // draw the "z"s / sparkles (default true)
   outlineScale?: number;          // thicker outline for small sizes
+  idPrefix?: string;              // makes clip ids unique when several dogs share one SVG
 }
 
 // Just the dog, in drawing units, without the outer <svg>.
 export function companionInnerMarkup(opts: Omit<MarkupOptions, 'size' | 'backdrop'>): string {
+  const breed = getBreed(opts.breed);
   const pose = opts.pose ?? POSES[opts.state];
-  currentOutlineScale = opts.outlineScale ?? 1;
-  const look = accessoryLook(opts.accessory, opts.state);
+  const scene = buildScene(breed, opts.state, opts.equipped ?? {});
+  outlineScale = opts.outlineScale ?? 1;
+  clipDefs = [];
+  clipCount = 0;
+  clipPrefix = `${opts.idPrefix ?? 'c'}-`;
+  const p = (name: PartName, inner: string) => part(name, pose, breed, inner);
 
-  const neck =
-    look.neck === 'scarf' ? shapes(PARTS.scarf)
-      : look.neck === 'bowTie' ? shapes(PARTS.bowTie)
-        : look.neck === 'collar' ? shapes(PARTS.collar)
-          : '';
+  const knot =
+    (scene.tuftHidden || scene.celebrationHat ? '' : drawables(scene.knotTuft)) +
+    drawables(scene.knotBase) +
+    drawables(scene.headItem) +
+    (scene.celebrationHat ? drawables(scene.partyHat) : '');
 
   const head =
-    shapes(PARTS.head) +
-    shapes(PARTS.face) +
-    part('eyesOpen', pose, shapes(PARTS.eyesOpen)) +
-    part('lids', pose, shapes(PARTS.lids)) +
-    part('eyesHappy', pose, shapes(PARTS.eyesHappy)) +
-    part('mouthClosed', pose, shapes(PARTS.mouthClosed)) +
-    part('mouthOpen', pose, shapes(PARTS.mouthOpen)) +
-    part('earL', pose, shapes(PARTS.earL)) +
-    part('earR', pose, shapes(PARTS.earR)) +
-    part('knot', pose, (look.hat ? '' : shapes(PARTS.knotTuft)) + shapes(PARTS.bow) + (look.hat ? shapes(PARTS.hat) : ''));
+    drawables(scene.head) +
+    p('eyesOpen', drawables(scene.eyesOpen)) +
+    p('lids', drawables(scene.lids)) +
+    p('eyesHappy', drawables(scene.eyesHappy)) +
+    p('mouthClosed', drawables(scene.mouthClosed)) +
+    p('mouthOpen', drawables(scene.mouthOpen)) +
+    drawables(scene.face) +
+    p('earL', drawables(scene.earL)) +
+    p('earR', drawables(scene.earR)) +
+    p('knot', knot);
 
   let effects = '';
   if (opts.effects !== false) {
@@ -97,19 +125,22 @@ export function companionInnerMarkup(opts: Omit<MarkupOptions, 'size' | 'backdro
     }
   }
 
-  return (
-    part('shadow', pose, shapes(PARTS.shadow)) +
-    part(
+  const dog =
+    p('shadow', drawables(scene.shadow)) +
+    p(
       'root',
-      pose,
-      part('tail', pose, shapes(PARTS.tail)) +
-        part('body', pose, shapes(PARTS.body) + neck) +
-        part('pawL', pose, shapes(PARTS.pawL)) +
-        part('pawR', pose, shapes(PARTS.pawR)) +
-        part('head', pose, head),
+      drawables(scene.aura) +
+        p('body', drawables(scene.back)) +
+        p('tail', drawables(scene.tail)) +
+        p('body', drawables(scene.body)) +
+        p('pawL', drawables(scene.pawL)) +
+        p('pawR', drawables(scene.pawR)) +
+        p('head', head) +
+        p('pawR', drawables(scene.held)),
     ) +
-    effects
-  );
+    effects;
+
+  return (clipDefs.length ? `<defs>${clipDefs.join('')}</defs>` : '') + dog;
 }
 
 export function companionSvgMarkup(opts: MarkupOptions): string {
@@ -127,5 +158,3 @@ export function companionSvgMarkup(opts: MarkupOptions): string {
     `</svg>`
   );
 }
-
-export { HEART };

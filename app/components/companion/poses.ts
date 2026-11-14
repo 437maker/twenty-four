@@ -79,17 +79,48 @@ export function poseForState(state: NovaState): Pose {
 
 // ─── Pivots ───────────────────────────────────────────────────────────────────
 // The point each part rotates or scales around, in drawing units.
-export const PIVOTS = {
+// These are the same on every breed (the shared skeleton):
+export const SKELETON = {
   root: { x: 100, y: 150 },    // spin: middle of the dog
   ground: { x: 100, y: 188 },  // body squash: where she touches the ground
   neck: { x: 100, y: 128 },    // head tilt
-  earL: { x: 58, y: 62 },      // ear base
-  earR: { x: 142, y: 62 },
-  tail: { x: 132, y: 160 },    // tail base
-  knot: { x: 100, y: 46 },     // where the bow ties the topknot
-  lid: { x: 100, y: 81 },      // eyelid hinge: top edge of the eyes
-  mouth: { x: 100, y: 113 },   // mouth opens downward from here
   shadow: { x: 100, y: 187 },
+} as const;
+
+// ...and these differ by breed (an upright ear hinges somewhere else than a
+// hanging one). Each breed supplies its own; see breeds/*.ts.
+export interface RigPivots {
+  earL: { x: number; y: number };  // ear base
+  earR: { x: number; y: number };
+  tail: { x: number; y: number };  // tail base
+  knot: { x: number; y: number };  // where a topknot or hat sits and wobbles
+  lidY: number;                    // eyelid hinge: top edge of the eyes
+  mouthY: number;                  // the mouth opens downward from here
+  earSign: number;                 // +1 hanging ears swing outward, -1 upright ears tip outward
+  earGain: number;                 // how much of the pose's ear angle this ear takes (stiff ears < 1)
+}
+
+// The Maltese pivots, used when no breed is given.
+export const DEFAULT_PIVOTS: RigPivots = {
+  earL: { x: 58, y: 62 },
+  earR: { x: 142, y: 62 },
+  tail: { x: 132, y: 160 },
+  knot: { x: 100, y: 46 },
+  lidY: 81,
+  mouthY: 113,
+  earSign: 1,
+  earGain: 1,
+};
+
+// Kept for older call sites and tests.
+export const PIVOTS = {
+  ...SKELETON,
+  earL: DEFAULT_PIVOTS.earL,
+  earR: DEFAULT_PIVOTS.earR,
+  tail: DEFAULT_PIVOTS.tail,
+  knot: DEFAULT_PIVOTS.knot,
+  lid: { x: 100, y: DEFAULT_PIVOTS.lidY },
+  mouth: { x: 100, y: DEFAULT_PIVOTS.mouthY },
 } as const;
 
 export type PartName =
@@ -108,7 +139,7 @@ export interface PartTransform {
 // Turns a pose into the transform for one part.
 // Marked as a worklet so the rig can call it on the UI thread every frame;
 // in Node (render script, tests) the directive is just an unused string.
-export function partTransform(part: PartName, p: Pose): PartTransform {
+export function partTransform(part: PartName, p: Pose, pv: RigPivots = DEFAULT_PIVOTS): PartTransform {
   'worklet';
   const t: PartTransform = { tx: 0, ty: 0, rot: 0, sx: 1, sy: 1, opacity: 1, px: 100, py: 100 };
   switch (part) {
@@ -126,7 +157,7 @@ export function partTransform(part: PartName, p: Pose): PartTransform {
       t.ty = p.hop; t.rot = p.spin;
       break;
     case 'tail':
-      t.px = 132; t.py = 160;
+      t.px = pv.tail.x; t.py = pv.tail.y;
       t.rot = p.tail;
       break;
     case 'body':
@@ -148,19 +179,19 @@ export function partTransform(part: PartName, p: Pose): PartTransform {
       t.rot = p.headRot;
       break;
     case 'earL':
-      t.px = 58; t.py = 62;
-      t.rot = p.earL;
+      t.px = pv.earL.x; t.py = pv.earL.y;
+      t.rot = p.earL * pv.earSign * pv.earGain;
       break;
     case 'earR':
-      t.px = 142; t.py = 62;
-      t.rot = 0 - p.earR; // mirrored ear swings the other way
+      t.px = pv.earR.x; t.py = pv.earR.y;
+      t.rot = 0 - p.earR * pv.earSign * pv.earGain; // mirrored ear swings the other way
       break;
     case 'knot':
-      t.px = 100; t.py = 46;
+      t.px = pv.knot.x; t.py = pv.knot.y;
       t.rot = p.knot;
       break;
     case 'lids':
-      t.px = 100; t.py = 81;
+      t.px = 100; t.py = pv.lidY;
       t.sy = p.lid;
       t.opacity = p.lid > 0.02 ? 1 : 0;
       break;
@@ -174,57 +205,10 @@ export function partTransform(part: PartName, p: Pose): PartTransform {
       t.opacity = 1 - p.mouthOpen;
       break;
     case 'mouthOpen':
-      t.px = 100; t.py = 113;
+      t.px = 100; t.py = pv.mouthY;
       t.sy = 0.4 + 0.6 * p.mouthOpen;
       t.opacity = p.mouthOpen;
       break;
   }
   return t;
-}
-
-// ─── Accessories ──────────────────────────────────────────────────────────────
-// Shop items the rig knows how to draw. Everything else in the catalog is a
-// follow-up (see docs/COMPANION.md).
-export type NeckItem = 'scarf' | 'bowTie' | 'collar';
-
-export interface AccessoryLook {
-  hat: boolean;
-  neck: NeckItem | null;
-}
-
-export const SUPPORTED_ACCESSORIES = [
-  'acc_party_hat',
-  'outfit_cozy_sweater',
-  'acc_bow_tie',
-  'acc_golden_collar',
-] as const;
-
-export function isSupportedAccessory(id: string | null | undefined): boolean {
-  return !!id && (SUPPORTED_ACCESSORIES as readonly string[]).includes(id);
-}
-
-// What to draw for a given shop item and state.
-// Celebrating always wears the party hat, whatever else is equipped.
-export function accessoryLook(accessory: string | null | undefined, state: NovaState): AccessoryLook {
-  const look: AccessoryLook = { hat: state === 'celebrating', neck: null };
-  switch (accessory) {
-    case 'acc_party_hat': look.hat = true; break;
-    case 'outfit_cozy_sweater': look.neck = 'scarf'; break;
-    case 'acc_bow_tie': look.neck = 'bowTie'; break;
-    case 'acc_golden_collar': look.neck = 'collar'; break;
-  }
-  // A cone hat on a sleeping dog would poke through the "z"s. Take it off.
-  if (state === 'sleeping') look.hat = false;
-  return look;
-}
-
-// Picks which owned item the companion wears. There is no "equip" feature in
-// the app yet, so the rule is: the most recently bought item the rig can draw.
-export function pickAccessory(owned: { item_id: string; purchased_at: string }[]): string | null {
-  let best: { item_id: string; purchased_at: string } | null = null;
-  for (const o of owned) {
-    if (!isSupportedAccessory(o.item_id)) continue;
-    if (!best || o.purchased_at > best.purchased_at) best = o;
-  }
-  return best ? best.item_id : null;
 }
