@@ -24,7 +24,13 @@ import { SHOP_CATALOG, getCatalogByCategory } from '../data/shopCatalog';
 import {
   purchaseItem, purchaseShield, getOwnedItems, equipItem, unequipSlot, setShownHouse,
 } from '../db/queries';
+import Companion from '../components/companion/Companion';
 import CompanionSvg from '../components/companion/CompanionSvg';
+import { getHouse } from '../components/companion/houses';
+import type { HouseDef } from '../components/companion/houses';
+import { HouseScene, HouseStill, dogFrame } from '../components/companion/houses/HouseScene';
+import { sceneFit } from '../components/companion/houses/types';
+import { useReduceMotion } from '../components/companion/useReduceMotion';
 import { isEquipped, isWearable, slotForItem, withItem } from '../components/companion/items/itemSlots';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
@@ -37,6 +43,12 @@ const CARD_MARGIN = 8;
 const NUM_COLUMNS = 2;
 const PREVIEW_SIZE = 104; // the try-on picture on each wearable card
 const CARD_WIDTH = (SCREEN_WIDTH - CARD_MARGIN * (NUM_COLUMNS + 2) * 2) / NUM_COLUMNS;
+// The house picture on each House card (3:2, like the scene itself)...
+const HOUSE_CARD_W = Math.floor(CARD_WIDTH - 28);
+const HOUSE_CARD_H = Math.round((HOUSE_CARD_W * 2) / 3);
+// ...and the big animated one in the preview pop-up.
+const HOUSE_BIG_W = Math.min(330, Math.floor(SCREEN_WIDTH - 88));
+const HOUSE_BIG_H = Math.round((HOUSE_BIG_W * 2) / 3);
 
 const TIER_COLORS: Record<number, string> = {
   1: '#9CA3AF',
@@ -75,6 +87,83 @@ function TierBadge({ tier }: TierBadgeProps) {
   );
 }
 
+// A house with the user's own dog standing in front of it. Still picture:
+// one SVG for the scene and one for the dog.
+function HouseCardPreview({ def, breed, equipped }: { def: HouseDef; breed: string; equipped: Equipped }) {
+  const box = useMemo(() => dogFrame(sceneFit(HOUSE_CARD_W, HOUSE_CARD_H), def.dog), [def]);
+  return (
+    <View style={styles.housePreview}>
+      <HouseStill def={def} width={HOUSE_CARD_W} height={HOUSE_CARD_H} />
+      <View style={{ position: 'absolute', left: box.left, top: box.top }} pointerEvents="none">
+        <CompanionSvg state="idle" size={box.size} breed={breed} equipped={equipped} />
+      </View>
+    </View>
+  );
+}
+
+// The big preview: the animated scene with the animated dog in front of it,
+// so a house can be tried before it is bought.
+interface HousePreviewModalProps {
+  item: ShopItemDef | null;
+  isOwned: boolean;
+  isShown: boolean;
+  breed: string;
+  equipped: Equipped;
+  onClose: () => void;
+  onBuy: (item: ShopItemDef) => void;
+  onShow: (item: ShopItemDef) => void;
+}
+function HousePreviewModal({ item, isOwned, isShown, breed, equipped, onClose, onBuy, onShow }: HousePreviewModalProps) {
+  const reduceMotion = useReduceMotion();
+  const def = item ? getHouse(item.id) : null;
+  if (!item || !def) return null;
+  const box = dogFrame(sceneFit(HOUSE_BIG_W, HOUSE_BIG_H), def.dog);
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard} testID="shop-house-preview-modal">
+          <View style={[styles.housePreview, { width: HOUSE_BIG_W, height: HOUSE_BIG_H, marginTop: 0 }]}>
+            <HouseScene def={def} width={HOUSE_BIG_W} height={HOUSE_BIG_H} reduceMotion={reduceMotion} />
+            <View style={{ position: 'absolute', left: box.left, top: box.top }} pointerEvents="none">
+              <Companion state="happy" size={box.size} breed={breed} equipped={equipped} reduceMotion={reduceMotion} interactive={false} label={`Your dog at the ${item.name}`} />
+            </View>
+          </View>
+          <Text style={[styles.modalItemName, { marginTop: 14 }]}>{item.name}</Text>
+          <Text style={styles.modalItemDescription}>{item.description}</Text>
+          <View style={styles.modalButtonRow}>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Close preview">
+              <Text style={styles.cancelButtonText}>Close</Text>
+            </TouchableOpacity>
+            {!isOwned ? (
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => onBuy(item)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Buy ${item.name} for ${item.price} treats`}
+                testID="shop-house-preview-buy"
+              >
+                <Text style={styles.confirmButtonText}>Buy  🦴 {item.price}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => onShow(item)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={isShown ? `${item.name} is shown in the yard` : `Show ${item.name} in the yard`}
+                testID="shop-house-preview-show"
+              >
+                <Text style={styles.confirmButtonText}>{isShown ? '✓ In yard' : 'Show in yard'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 interface ItemCardProps {
   item: ShopItemDef;
   isOwned: boolean;
@@ -87,11 +176,13 @@ interface ItemCardProps {
   // Houses:
   isShownHouse: boolean;
   onShowHouse: (item: ShopItemDef) => void;
+  onPreviewHouse: (item: ShopItemDef) => void;   // open the big animated preview
 }
 function ItemCard({
-  item, isOwned, onPress, breed, equipped, onWear, onTakeOff, isShownHouse, onShowHouse,
+  item, isOwned, onPress, breed, equipped, onWear, onTakeOff, isShownHouse, onShowHouse, onPreviewHouse,
 }: ItemCardProps) {
   const wearable = isWearable(item.id);
+  const house = item.category === 'house' ? getHouse(item.id) : null;
   const wearing = wearable && isEquipped(equipped, item.id);
   // Try-on: the dog as she is now, with this item put on (owned or not).
   const tryOn = useMemo(() => (wearable ? withItem(equipped, item.id) : equipped), [wearable, equipped, item.id]);
@@ -108,6 +199,16 @@ function ItemCard({
         >
           <CompanionSvg state="idle" size={PREVIEW_SIZE} breed={breed} equipped={tryOn} />
         </View>
+      ) : house ? (
+        <TouchableOpacity
+          onPress={() => onPreviewHouse(item)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.name} with your dog in front of it. Tap for a bigger preview.`}
+          testID={`shop-house-preview-${item.id}`}
+        >
+          <HouseCardPreview def={house} breed={breed} equipped={equipped} />
+        </TouchableOpacity>
       ) : (
         <Text style={styles.cardEmoji}>{item.emoji}</Text>
       )}
@@ -316,6 +417,7 @@ export default function ShopScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [previewHouse, setPreviewHouse] = useState<ShopItemDef | null>(null); // the big house preview
 
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -484,6 +586,7 @@ export default function ShopScreen() {
           onTakeOff={handleTakeOff}
           isShownHouse={shownHouse === item.id}
           onShowHouse={handleShowHouse}
+          onPreviewHouse={setPreviewHouse}
         />
       );
     },
@@ -520,6 +623,7 @@ export default function ShopScreen() {
           onTakeOff={handleTakeOff}
           isShownHouse={shownHouse === item.id}
           onShowHouse={handleShowHouse}
+          onPreviewHouse={setPreviewHouse}
         />
       );
     },
@@ -583,6 +687,26 @@ export default function ShopScreen() {
         initialNumToRender={6}
         windowSize={5}
       />
+
+      {/* ── House preview (animated scene + your dog) ────────────────────────── */}
+      {previewHouse && (
+        <HousePreviewModal
+          item={previewHouse}
+          isOwned={ownedItemIds.has(previewHouse.id)}
+          isShown={shownHouse === previewHouse.id}
+          breed={look.breed}
+          equipped={look.equipped}
+          onClose={() => setPreviewHouse(null)}
+          onBuy={(item) => {
+            setPreviewHouse(null);
+            handleBuyPress(item);
+          }}
+          onShow={(item) => {
+            setPreviewHouse(null);
+            if (shownHouse !== item.id) handleShowHouse(item);
+          }}
+        />
+      )}
 
       {/* ── Purchase modal ───────────────────────────────────────────────────── */}
       <PurchaseModal
@@ -720,6 +844,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  housePreview: {
+    width: HOUSE_CARD_W,
+    height: HOUSE_CARD_H,
+    marginTop: 14,
+    marginBottom: 6,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#EAF3FC',
   },
   wearButton: {
     backgroundColor: '#1D9E75',

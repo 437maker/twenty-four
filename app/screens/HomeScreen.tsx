@@ -40,7 +40,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -49,6 +49,10 @@ import NovaCompanion from '../components/NovaCompanion';
 import Companion from '../components/companion/Companion';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
+import { getHouse } from '../components/companion/houses';
+import type { HouseDef } from '../components/companion/houses';
+import { HouseScene, NIGHT_TINT, dogFrame, skyColor } from '../components/companion/houses/HouseScene';
+import { sceneFit } from '../components/companion/houses/types';
 import RenameCompanionModal from '../components/RenameCompanionModal';
 import BreedPickerScreen from './BreedPickerScreen';
 import SettingsScreen from './SettingsScreen';
@@ -148,6 +152,24 @@ export function houseTierToShow(ownedItemIds: string[], shownHouse: string | nul
     const item = getCatalogItem(id);
     return item?.category === 'house' ? Math.max(max, item.tier) : max;
   }, 0);
+}
+
+// Which house the yard draws: the one picked with "Show in yard" if it is
+// still owned, otherwise the best house owned (highest tier, then highest
+// price). null = no house owned, so the yard shows the starter doghouse.
+export function houseToShow(ownedItemIds: string[], shownHouse: string | null): string | null {
+  if (shownHouse && ownedItemIds.includes(shownHouse) && getCatalogItem(shownHouse)?.category === 'house') {
+    return shownHouse;
+  }
+  let best: { id: string; tier: number; price: number } | null = null;
+  for (const id of ownedItemIds) {
+    const item = getCatalogItem(id);
+    if (item?.category !== 'house') continue;
+    if (!best || item.tier > best.tier || (item.tier === best.tier && item.price > best.price)) {
+      best = { id, tier: item.tier, price: item.price };
+    }
+  }
+  return best?.id ?? null;
 }
 
 export function yardStageFromHouseTier(maxTier: number): number {
@@ -358,9 +380,9 @@ function noop() {}
 // Yard stage: when the stage changes, the OLD yard stays drawn underneath while
 // the NEW yard fades in on top (opacity 0 → 1, 700ms). Then the old layer is removed.
 function YardHeader({
-  height, width, stage, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog,
+  height, width, stage, house, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog,
 }: {
-  height: number; width: number; stage: number; night: boolean; novaState: NovaState;
+  height: number; width: number; stage: number; house: HouseDef | null; night: boolean; novaState: NovaState;
   balanceScore: number; reduceMotion: boolean; onSettings: () => void;
   companionName: string; breed: string; equipped: Equipped; onLongPressDog: () => void;
 }) {
@@ -401,26 +423,69 @@ function YardHeader({
 
   const novaSize = Math.min(150, height * 0.62);
 
+  // ── The owned house: its own backdrop, drawn over the default yard ──
+  // When the house changes, the old one stays underneath while the new one
+  // fades in on top (700ms), the same way the yard stages crossfade.
+  const focused = useIsFocused();
+  const fit = useMemo(() => sceneFit(width, height), [width, height]);
+  const [shownHouse, setShownHouse] = useState<HouseDef | null>(house);
+  const [fromHouse, setFromHouse] = useState<HouseDef | null>(null);
+  const [houseFading, setHouseFading] = useState(false);
+  const houseOpacity = useRef(new Animated.Value(1)).current;
+  useOnChange(house?.id ?? null, () => {
+    setFromHouse(shownHouse);
+    setShownHouse(house);
+    setHouseFading(true);
+    houseOpacity.setValue(0);
+    Animated.timing(houseOpacity, {
+      toValue: 1,
+      duration: reduceMotion ? 0 : 700,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setFromHouse(null);
+      setHouseFading(false);
+    });
+  });
+  // The default yard is only drawn when it can be seen.
+  const showDefault = !shownHouse || (houseFading && !fromHouse);
+  const dogBox = shownHouse ? dogFrame(fit, shownHouse.dog) : null;
+
   return (
     <View style={[styles.yard, { height }]}>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.skyDay }]} />
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.skyNight, opacity: nightOpacity }]} />
-      <View style={[styles.celestial, night ? styles.moon : styles.sun]} />
+      {showDefault && (
+        <>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.skyDay }]} />
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.skyNight, opacity: nightOpacity }]} />
+          <View style={[styles.celestial, night ? styles.moon : styles.sun]} />
 
-      {clouds.map((c, i) => (
-        <Cloud key={i} {...c} skyWidth={width} night={night} reduceMotion={reduceMotion} />
-      ))}
+          {clouds.map((c, i) => (
+            <Cloud key={i} {...c} skyWidth={width} night={night} reduceMotion={reduceMotion} />
+          ))}
 
-      {fadingFrom !== null && <YardStageArt stage={fadingFrom} night={night} />}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: stageOpacity }]} pointerEvents="none">
-        <YardStageArt stage={shownStage} night={night} />
-      </Animated.View>
+          {fadingFrom !== null && <YardStageArt stage={fadingFrom} night={night} />}
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: stageOpacity }]} pointerEvents="none">
+            <YardStageArt stage={shownStage} night={night} />
+          </Animated.View>
+        </>
+      )}
+
+      {fromHouse && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <HouseScene def={fromHouse} width={width} height={height} reduceMotion paused night={night} />
+        </View>
+      )}
+      {shownHouse && (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: houseOpacity }]} pointerEvents="none">
+          <HouseScene def={shownHouse} width={width} height={height} reduceMotion={reduceMotion} paused={!focused} night={night} />
+        </Animated.View>
+      )}
 
       {/* Nova in front of the house */}
-      <View style={[styles.novaSpot, { bottom: height * 0.02 }]}>
+      <View style={dogBox ? { position: 'absolute', left: dogBox.left, top: dogBox.top } : [styles.novaSpot, { bottom: height * 0.02 }]}>
         <NovaSprite
           state={novaState}
-          size={novaSize}
+          size={dogBox ? dogBox.size : novaSize}
           reduceMotion={reduceMotion}
           name={companionName}
           breed={breed}
@@ -613,6 +678,7 @@ export default function HomeScreen() {
   const [celebModalVisible, setCelebModalVisible] = useState(false);
   const [boxModalVisible, setBoxModalVisible] = useState(false);
   const [yardStage, setYardStage] = useState(0);
+  const [yardHouseId, setYardHouseId] = useState<string | null>(null); // the house drawn in the yard
   const [renameVisible, setRenameVisible] = useState(false);       // tap the name
   const [breedPickerVisible, setBreedPickerVisible] = useState(false); // press and hold the dog
   const look = useCompanionLook(); // breed, equipped items, name
@@ -636,7 +702,9 @@ export default function HomeScreen() {
     // Yard stage follows the house chosen in the Shop ("Show in yard"), or
     // the best House item owned if none was chosen.
     const shownHouse = useAppStore.getState().settings?.shown_house ?? null;
-    setYardStage(yardStageFromHouseTier(houseTierToShow(owned.map((o) => o.item_id), shownHouse)));
+    const ownedIds = owned.map((o) => o.item_id);
+    setYardStage(yardStageFromHouseTier(houseTierToShow(ownedIds, shownHouse)));
+    setYardHouseId(houseToShow(ownedIds, shownHouse));
     setPlayKey((k) => k + 1);
 
     // Google Calendar sync: no-op if not connected; reload today when done.
@@ -721,6 +789,10 @@ export default function HomeScreen() {
         ? 'happy'
         : 'idle';
 
+  // The house in the yard, and the sky color behind the status bar.
+  const yardHouse = getHouse(yardHouseId);
+  const topColor = yardHouse ? skyColor(yardHouse) : night ? COLORS.skyNight : COLORS.skyDay;
+
   const milestoneTreats = milestoneStreak === 7 ? 15 : milestoneStreak === 30 ? 35 : milestoneStreak === 100 ? 70 : 130;
 
   return (
@@ -731,12 +803,15 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.brand} />}
       >
         {/* Status-bar area takes the sky color so the yard reaches the top edge */}
-        <View style={{ height: insets.top, backgroundColor: night ? COLORS.skyNight : COLORS.skyDay }} />
+        <View style={{ height: insets.top, backgroundColor: topColor }}>
+          {yardHouse && night && !yardHouse.dark && <View style={[StyleSheet.absoluteFill, { backgroundColor: NIGHT_TINT }]} />}
+        </View>
 
         <YardHeader
           height={Math.round(screenH * 0.3)}
           width={screenW}
           stage={yardStage}
+          house={yardHouse}
           night={night}
           novaState={novaState}
           balanceScore={balanceScore}
