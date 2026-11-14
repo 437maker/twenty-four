@@ -51,8 +51,10 @@ import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
 import { getHouse } from '../components/companion/houses';
 import type { HouseDef } from '../components/companion/houses';
-import { HouseScene, NIGHT_TINT, dogFrame, skyColor } from '../components/companion/houses/HouseScene';
+import { HouseScene, NIGHT_TINT, skyColor } from '../components/companion/houses/HouseScene';
 import { sceneFit } from '../components/companion/houses/types';
+import YardDog from '../components/companion/houses/YardDog';
+import { currentSleepBlock } from '../components/companion/houses/restMachine';
 import RenameCompanionModal from '../components/RenameCompanionModal';
 import BreedPickerScreen from './BreedPickerScreen';
 import SettingsScreen from './SettingsScreen';
@@ -60,7 +62,7 @@ import { getTodayString, shiftDateString } from '../utils/dateHelpers';
 import { calculatePlanAdherence, getHoursPerPillar, weeklyBoxLabel } from '../utils/calculations';
 import { getOwnedItems, getTasksForDate } from '../db/queries';
 import { getCatalogItem } from '../data/shopCatalog';
-import { NovaState, Pillar } from '../types';
+import { NovaState, Pillar, Task } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens
@@ -217,6 +219,17 @@ function useIsNight(): boolean {
     return () => clearInterval(id);
   }, []);
   return night;
+}
+
+// The current time, refreshed every minute. Used to notice a Sleep block
+// starting or ending while the app is open.
+function useMinuteClock(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
 }
 
 // Calls onChange(prev, next) only when `value` actually changes — never on the
@@ -380,9 +393,9 @@ function noop() {}
 // Yard stage: when the stage changes, the OLD yard stays drawn underneath while
 // the NEW yard fades in on top (opacity 0 → 1, 700ms). Then the old layer is removed.
 function YardHeader({
-  height, width, stage, house, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog,
+  height, width, stage, house, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog, inSleepBlock,
 }: {
-  height: number; width: number; stage: number; house: HouseDef | null; night: boolean; novaState: NovaState;
+  height: number; width: number; stage: number; house: HouseDef | null; night: boolean; novaState: NovaState; inSleepBlock: boolean;
   balanceScore: number; reduceMotion: boolean; onSettings: () => void;
   companionName: string; breed: string; equipped: Equipped; onLongPressDog: () => void;
 }) {
@@ -449,7 +462,6 @@ function YardHeader({
   });
   // The default yard is only drawn when it can be seen.
   const showDefault = !shownHouse || (houseFading && !fromHouse);
-  const dogBox = shownHouse ? dogFrame(fit, shownHouse.dog) : null;
 
   return (
     <View style={[styles.yard, { height }]}>
@@ -481,18 +493,35 @@ function YardHeader({
         </Animated.View>
       )}
 
-      {/* Nova in front of the house */}
-      <View style={dogBox ? { position: 'absolute', left: dogBox.left, top: dogBox.top } : [styles.novaSpot, { bottom: height * 0.02 }]}>
-        <NovaSprite
-          state={novaState}
-          size={dogBox ? dogBox.size : novaSize}
-          reduceMotion={reduceMotion}
+      {shownHouse ? (
+        // With a house: she stands at the house's own spot, and can go inside
+        // (tap the house, or by herself during a Sleep block). See YardDog.
+        <YardDog
+          key={shownHouse.id}
+          house={shownHouse}
+          fit={fit}
+          outsideState={novaState}
           name={companionName}
           breed={breed}
           equipped={equipped}
+          reduceMotion={reduceMotion}
+          inSleepBlock={inSleepBlock}
           onLongPress={onLongPressDog}
         />
-      </View>
+      ) : (
+        /* Nova in front of the starter doghouse */
+        <View style={[styles.novaSpot, { bottom: height * 0.02 }]}>
+          <NovaSprite
+            state={novaState}
+            size={novaSize}
+            reduceMotion={reduceMotion}
+            name={companionName}
+            breed={breed}
+            equipped={equipped}
+            onLongPress={onLongPressDog}
+          />
+        </View>
+      )}
 
       {/* Compact balance score next to Nova */}
       <BalanceChip score={balanceScore} />
@@ -654,6 +683,7 @@ export default function HomeScreen() {
   const { height: screenH, width: screenW } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
   const night = useIsNight();
+  const now = useMinuteClock();
 
   const {
     settings,
@@ -672,6 +702,7 @@ export default function HomeScreen() {
   } = useAppStore();
 
   const [yesterdayAdherence, setYesterdayAdherence] = useState(0);
+  const [yesterdayTasks, setYesterdayTasks] = useState<Task[]>([]); // a Sleep block can start before midnight
   const [tomorrowEmpty, setTomorrowEmpty] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -697,6 +728,7 @@ export default function HomeScreen() {
       getOwnedItems(),
     ]);
     setYesterdayAdherence(calculatePlanAdherence(yTasks));
+    setYesterdayTasks(yTasks);
     setTomorrowEmpty(tmrTasks.length === 0);
 
     // Yard stage follows the house chosen in the Shop ("Show in yard"), or
@@ -789,6 +821,12 @@ export default function HomeScreen() {
         ? 'happy'
         : 'idle';
 
+  // Is the schedule in a Sleep block right now? Then she goes inside to rest.
+  const inSleepBlock = useMemo(
+    () => currentSleepBlock([...yesterdayTasks, ...todaysTasks], now) !== null,
+    [yesterdayTasks, todaysTasks, now],
+  );
+
   // The house in the yard, and the sky color behind the status bar.
   const yardHouse = getHouse(yardHouseId);
   const topColor = yardHouse ? skyColor(yardHouse) : night ? COLORS.skyNight : COLORS.skyDay;
@@ -812,6 +850,7 @@ export default function HomeScreen() {
           width={screenW}
           stage={yardStage}
           house={yardHouse}
+          inSleepBlock={inSleepBlock}
           night={night}
           novaState={novaState}
           balanceScore={balanceScore}

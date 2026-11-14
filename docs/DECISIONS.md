@@ -466,3 +466,43 @@ Each entry says what was decided, why, and how to reverse it.
   chosen with "Show in yard", otherwise the highest tier owned, and the
   pricier one if two share a tier.
 - **Why:** the spec says to keep the default yard.
+
+### D48. Going inside is one dog and one number
+- **What:** the yard keeps a single animated dog. A value `p` says where she
+  is: 0 at her spot, 1 at the door (small and invisible), 2 at the rest spot.
+  The view she lives in is moved and scaled from `p`; the dog herself is
+  never rebuilt.
+- **Why:** the spec says equipped items stay on and only the anchors move.
+  Using the same dog the whole way makes that true by construction.
+- **Rules are separate from motion:** `houses/restMachine.ts` is pure (phases,
+  events, Sleep blocks, the walk math). `houses/YardDog.tsx` only plays the
+  walk for the phase it is given. Timers, not animation callbacks, mark the
+  moments she passes the door and arrives.
+
+### D49. She rests in a doorway or a window, drawn smaller, not clipped
+- **What:** inside, she is drawn at about 43% of her outside size so that
+  the sleeping pose fits inside a 40 x 44 doorway. Nothing is clipped, so
+  the "z"s float up over the wall.
+- **Why:** clipping her to the doorway would also cut off the "z"s the spec
+  asks for. Found in the render review (round 1 had her too big).
+- **Three houses use a window instead of the door:** the Treehouse (the
+  cabin up in the tree), the Sky Tower (the lookout), and the Space Station
+  (the dome). She walks to the ladder, the entrance, or the hatch, and
+  appears in the window.
+
+### D50. Auto-rest follows Sleep blocks on the schedule, not the clock
+- **What:** if the time now is inside a task whose pillar is Sleep (today's,
+  or one from yesterday that runs past midnight), she walks inside by
+  herself. She comes out when the block ends. If the user taps to bring her
+  out, she stays out for the rest of that block. If the user sent her in,
+  the end of a Sleep block does not bring her out. Home checks once a minute.
+- **Kept as it was:** after 10pm with no Sleep block she still sleeps
+  outside, as before.
+- **Only with a house:** the starter yard (no House item owned) has no rest
+  feature. The spec says to keep that yard as it is.
+
+### D51. While walking she uses the "happy" animation
+- **What:** between her spot and the door she plays the happy hop.
+- **Why:** there is no walk cycle in the rig (she is drawn facing the
+  viewer), and the hop reads as trotting. Under Reduce Motion there is no
+  walk at all: she fades out where she is and fades in where she is going.

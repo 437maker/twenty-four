@@ -313,6 +313,29 @@ look at the sheets.
 | 1 | The resting dog was bigger than the doorways and covered their frames. The Beach Shack palm ran off the right edge. The Cozy Den smoke was too small to see. | (first render) |
 | 2 | Fixed: she is drawn smaller inside (46 units, down from 56), so she sits within the door frame. Palm moved in. Bigger smoke puffs. Checked dark coats against dark doorways: the lamp glow in each doorway keeps them readable. | rest sizes, palm, smoke |
 
+## Going inside
+
+With a house in the yard, she can go in and rest.
+
+- **Tap the house** (or the small "Rest" button in the corner of the yard).
+  She trots to the door, shrinks and fades through it, and appears resting
+  in the doorway or a window, asleep, with her "z"s. **Tap the house, the
+  dog, or "Wake"** and she comes back out.
+- **Auto-rest.** When the time is inside a Sleep task on today's schedule,
+  she goes in by herself, and comes out when it ends. Tapping brings her out
+  early, and she then stays out until that Sleep task is over.
+- **What she wears stays on.** It is the same dog the whole way.
+- **Reduce Motion:** no walk. She fades out outside and fades in inside.
+
+| File | Job |
+|---|---|
+| `houses/restMachine.ts` | the rules: the four phases (outside, entering, inside, exiting), what each event does, when a Sleep block is running, and the walk math |
+| `houses/YardDog.tsx` | the dog in the yard: plays the walk for the current phase, and holds the tap targets |
+
+To change how long the walk takes: `WALK_MS` and `DOOR_FADE_MS` in
+`restMachine.ts`. To move where she rests in a house: `rest` in its
+`HouseDef` (then render the sheets and look at `houses-inside.png`).
+
 ## How to change her
 
 - **A color:** `palette.ts`, then `npm run render:companion` and look.
