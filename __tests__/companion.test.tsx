@@ -10,6 +10,16 @@
 // What these tests cannot see: pixels and smoothness. Those are checked with
 // the PNG renders in docs/companion/ and on the phone (docs/MANUAL_CHECKS.md).
 
+// The Gallery reads the companion's name, breed, and outfit from the app
+// store, and the store talks to the database. Give it the real in-memory one.
+jest.mock('expo-sqlite', () => require('../test-utils/realSqlite').expoSqliteMock);
+jest.mock('expo-file-system', () => ({ File: jest.fn(), Paths: { cache: 'cache' } }));
+jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(), shareAsync: jest.fn() }));
+jest.mock('../app/services/calendarSync', () => ({
+  runSync: jest.fn(),
+  isSyncReady: jest.fn(async () => false),
+}));
+
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
@@ -21,10 +31,8 @@ import { mirrorPath, PARTS } from '../app/components/companion/parts';
 import {
   POSES,
   REST_POSE,
-  accessoryLook,
   outlineScaleForSize,
   partTransform,
-  pickAccessory,
   poseForState,
 } from '../app/components/companion/poses';
 import type { Pose } from '../app/components/companion/poses';
@@ -198,45 +206,6 @@ describe('partTransform', () => {
     expect(grounded.opacity).toBe(1);
     expect(inAir.opacity).toBeLessThan(1);
     expect(inAir.sx).toBeLessThan(grounded.sx);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Accessories
-// ─────────────────────────────────────────────────────────────────────────────
-describe('accessories', () => {
-  test('celebrating always wears the party hat', () => {
-    expect(accessoryLook(null, 'celebrating').hat).toBe(true);
-    expect(accessoryLook('acc_bow_tie', 'celebrating')).toEqual({ hat: true, neck: 'bowTie' });
-  });
-
-  test('the party hat item shows in idle and happy but comes off for sleep', () => {
-    expect(accessoryLook('acc_party_hat', 'idle').hat).toBe(true);
-    expect(accessoryLook('acc_party_hat', 'happy').hat).toBe(true);
-    expect(accessoryLook('acc_party_hat', 'sleeping').hat).toBe(false);
-  });
-
-  test('neck items map to the right drawing', () => {
-    expect(accessoryLook('outfit_cozy_sweater', 'idle').neck).toBe('scarf');
-    expect(accessoryLook('acc_bow_tie', 'idle').neck).toBe('bowTie');
-    expect(accessoryLook('acc_golden_collar', 'idle').neck).toBe('collar');
-  });
-
-  test('an item the rig cannot draw changes nothing', () => {
-    expect(accessoryLook('outfit_space_suit', 'idle')).toEqual({ hat: false, neck: null });
-    expect(accessoryLook(null, 'idle')).toEqual({ hat: false, neck: null });
-  });
-
-  test('pickAccessory chooses the newest owned item the rig can draw', () => {
-    const owned = [
-      { item_id: 'acc_party_hat', purchased_at: '2026-11-01T10:00:00.000Z' },
-      { item_id: 'outfit_space_suit', purchased_at: '2026-11-09T10:00:00.000Z' }, // newer, not drawable
-      { item_id: 'outfit_cozy_sweater', purchased_at: '2026-11-05T10:00:00.000Z' },
-      { item_id: 'house_cozy_den', purchased_at: '2026-11-10T10:00:00.000Z' },
-    ];
-    expect(pickAccessory(owned)).toBe('outfit_cozy_sweater');
-    expect(pickAccessory([{ item_id: 'house_cozy_den', purchased_at: '2026-11-10T10:00:00.000Z' }])).toBeNull();
-    expect(pickAccessory([])).toBeNull();
   });
 });
 

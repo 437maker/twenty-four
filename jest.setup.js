@@ -20,7 +20,7 @@
 require('react-native-reanimated').setUpTests();
 
 // Every Gesture.Tap() / Gesture.Pan() built during a test, newest last.
-// Each entry: { type: 'tap' | 'pan', handlers: { onEnd, onStart, onUpdate, ... } }
+// Each entry: { type: 'tap' | 'pan' | 'longPress', handlers: { onEnd, onStart, onUpdate, ... } }
 global.__gestures = [];
 beforeEach(() => {
   global.__gestures.length = 0;
@@ -56,6 +56,7 @@ jest.mock('react-native-gesture-handler', () => {
     Gesture: {
       Tap: () => makeGesture('tap'),
       Pan: () => makeGesture('pan'),
+      LongPress: () => makeGesture('longPress'),
       Simultaneous: (...gestures) => ({ type: 'simultaneous', gestures }),
       Exclusive: (...gestures) => ({ type: 'exclusive', gestures }),
       Race: (...gestures) => ({ type: 'race', gestures }),
