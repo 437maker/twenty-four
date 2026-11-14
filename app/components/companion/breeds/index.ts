@@ -4,12 +4,13 @@
 // here. Everything else (the rig, the items, the picker, the tests) reads
 // this list.
 
+import { CORGI } from './corgi';
 import { GERMAN_SHEPHERD } from './germanShepherd';
 import { GOLDEN_RETRIEVER } from './goldenRetriever';
 import { MALTESE } from './maltese';
 import type { BreedDef, BreedId } from './types';
 
-export const BREEDS: BreedDef[] = [MALTESE, GERMAN_SHEPHERD, GOLDEN_RETRIEVER];
+export const BREEDS: BreedDef[] = [MALTESE, GERMAN_SHEPHERD, GOLDEN_RETRIEVER, CORGI];
 
 export const DEFAULT_BREED: BreedId = 'maltese';
 
