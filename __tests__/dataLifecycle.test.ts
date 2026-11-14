@@ -133,6 +133,38 @@ describe('purchases on a real database', () => {
     expect(await getOwnedItems()).toHaveLength(1);
     expect(count('treat_history')).toBe(1);
   });
+
+  // Bug B3: a purchase is three statements (deduct treats, grant the item,
+  // write the ledger row). If the app dies between them, treats are gone with
+  // nothing to show for it. Here the third statement is made to fail, which
+  // is the same thing as far as the database can tell.
+  function breakTheLedger(): void {
+    rawDb().exec(`
+      CREATE TRIGGER forced_failure BEFORE INSERT ON treat_history
+      BEGIN SELECT RAISE(ABORT, 'forced failure'); END;
+    `);
+  }
+
+  test.failing('B3: an item purchase that fails half-way charges nothing and grants nothing', async () => {
+    await changeTreats(100);
+    breakTheLedger();
+
+    await expect(purchaseItem('outfit_cozy_sweater', 25, 'Cozy Sweater')).rejects.toThrow();
+
+    expect((await getSettings())?.treat_count).toBe(100);
+    expect(await getOwnedItems()).toHaveLength(0);
+  });
+
+  test.failing('B3: a shield purchase that fails half-way charges nothing and grants nothing', async () => {
+    await changeTreats(100);
+    breakTheLedger();
+
+    await expect(purchaseShield(50)).rejects.toThrow();
+
+    const s = await getSettings();
+    expect(s?.treat_count).toBe(100);
+    expect(s?.shields_owned).toBe(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
