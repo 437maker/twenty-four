@@ -2,7 +2,7 @@
 // Users spend "treats" (🦴) to buy cosmetic items and stackable streak shields.
 // Sprint 2: outfit, accessory, house, shield categories with owned-item tracking.
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { ShopItemDef, ShopCategory, OwnedItem } from '../types';
 import { SHOP_CATALOG, getCatalogByCategory } from '../data/shopCatalog';
-import { purchaseItem, purchaseShield, getOwnedItems } from '../db/queries';
+import {
+  purchaseItem, purchaseShield, getOwnedItems, equipItem, unequipSlot, setShownHouse,
+} from '../db/queries';
+import CompanionSvg from '../components/companion/CompanionSvg';
+import { isEquipped, isWearable, slotForItem, withItem } from '../components/companion/items/itemSlots';
+import type { Equipped } from '../components/companion/items/itemSlots';
+import { useCompanionLook } from '../components/companion/useCompanionLook';
 import { useAppStore } from '../store/useAppStore';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -29,6 +35,7 @@ import { useAppStore } from '../store/useAppStore';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_MARGIN = 8;
 const NUM_COLUMNS = 2;
+const PREVIEW_SIZE = 104; // the try-on picture on each wearable card
 const CARD_WIDTH = (SCREEN_WIDTH - CARD_MARGIN * (NUM_COLUMNS + 2) * 2) / NUM_COLUMNS;
 
 const TIER_COLORS: Record<number, string> = {
@@ -71,30 +78,85 @@ function TierBadge({ tier }: TierBadgeProps) {
 interface ItemCardProps {
   item: ShopItemDef;
   isOwned: boolean;
-  onPress: (item: ShopItemDef) => void;
+  onPress: (item: ShopItemDef) => void;        // Buy
+  // Wearables (outfits and accessories):
+  breed: string;
+  equipped: Equipped;                           // what she is wearing now
+  onWear: (item: ShopItemDef) => void;
+  onTakeOff: (item: ShopItemDef) => void;
+  // Houses:
+  isShownHouse: boolean;
+  onShowHouse: (item: ShopItemDef) => void;
 }
-function ItemCard({ item, isOwned, onPress }: ItemCardProps) {
+function ItemCard({
+  item, isOwned, onPress, breed, equipped, onWear, onTakeOff, isShownHouse, onShowHouse,
+}: ItemCardProps) {
+  const wearable = isWearable(item.id);
+  const wearing = wearable && isEquipped(equipped, item.id);
+  // Try-on: the dog as she is now, with this item put on (owned or not).
+  const tryOn = useMemo(() => (wearable ? withItem(equipped, item.id) : equipped), [wearable, equipped, item.id]);
+
   return (
     <View style={styles.card}>
       <TierBadge tier={item.tier} />
-      <Text style={styles.cardEmoji}>{item.emoji}</Text>
+      {wearable ? (
+        <View
+          style={styles.cardPreview}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`Your dog wearing the ${item.name}`}
+        >
+          <CompanionSvg state="idle" size={PREVIEW_SIZE} breed={breed} equipped={tryOn} />
+        </View>
+      ) : (
+        <Text style={styles.cardEmoji}>{item.emoji}</Text>
+      )}
       <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
       <Text style={styles.cardDescription} numberOfLines={3}>{item.description}</Text>
       <View style={styles.cardPriceRow}>
         <Text style={styles.cardPrice}>🦴 {item.price}</Text>
       </View>
-      {isOwned ? (
-        <View style={styles.ownedBadge}>
-          <Text style={styles.ownedBadgeText}>✓ Owned</Text>
-        </View>
-      ) : (
+      {!isOwned ? (
         <TouchableOpacity
           style={styles.buyButton}
           onPress={() => onPress(item)}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Buy ${item.name} for ${item.price} treats`}
         >
           <Text style={styles.buyButtonText}>Buy</Text>
         </TouchableOpacity>
+      ) : wearable ? (
+        <TouchableOpacity
+          style={[styles.buyButton, wearing ? styles.takeOffButton : styles.wearButton]}
+          onPress={() => (wearing ? onTakeOff(item) : onWear(item))}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={wearing ? `Take off ${item.name}` : `Wear ${item.name}`}
+          testID={`shop-wear-${item.id}`}
+        >
+          <Text style={[styles.buyButtonText, wearing && styles.takeOffButtonText]}>
+            {wearing ? 'Take off' : 'Wear'}
+          </Text>
+        </TouchableOpacity>
+      ) : item.category === 'house' ? (
+        <TouchableOpacity
+          style={[styles.buyButton, isShownHouse ? styles.takeOffButton : styles.wearButton]}
+          onPress={() => onShowHouse(item)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isShownHouse }}
+          accessibilityLabel={isShownHouse ? `${item.name} is shown in the yard. Tap to go back to your best house.` : `Show ${item.name} in the yard`}
+          testID={`shop-house-${item.id}`}
+        >
+          <Text style={[styles.buyButtonText, isShownHouse && styles.takeOffButtonText]}>
+            {isShownHouse ? '✓ In yard' : 'Show in yard'}
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.ownedBadge}>
+          <Text style={styles.ownedBadgeText}>✓ Owned</Text>
+        </View>
       )}
     </View>
   );
@@ -135,6 +197,8 @@ interface PurchaseModalProps {
   onConfirm: () => void;
   isPurchasing: boolean;
   purchaseSuccess: boolean;
+  onWearNow: () => void;   // wearables only: put the new item straight on
+  onDone: () => void;      // close after a purchase
 }
 function PurchaseModal({
   item,
@@ -143,8 +207,11 @@ function PurchaseModal({
   onConfirm,
   isPurchasing,
   purchaseSuccess,
+  onWearNow,
+  onDone,
 }: PurchaseModalProps) {
   if (!item) return null;
+  const wearable = isWearable(item.id);
 
   return (
     <Modal
@@ -160,6 +227,29 @@ function PurchaseModal({
             <View style={styles.modalSuccessContainer}>
               <Text style={styles.modalSuccessEmoji}>🎉</Text>
               <Text style={styles.modalSuccessText}>Purchased!</Text>
+              {wearable && (
+                <View style={styles.modalButtonRow}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={onDone}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Not now"
+                  >
+                    <Text style={styles.cancelButtonText}>Not now</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={onWearNow}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Wear ${item.name} now`}
+                    testID="shop-wear-now"
+                  >
+                    <Text style={styles.confirmButtonText}>Wear now</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ) : (
             <>
@@ -216,7 +306,9 @@ function ShieldInfoCard() {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ShopScreen() {
-  const { settings, refreshTreatCount } = useAppStore();
+  const { settings, refreshTreatCount, loadSettings } = useAppStore();
+  const look = useCompanionLook();          // breed + what she is wearing
+  const shownHouse = settings?.shown_house ?? null;
 
   const [activeCategory, setActiveCategory] = useState<ShopCategory>('outfit');
   const [ownedItems, setOwnedItems] = useState<OwnedItem[]>([]);
@@ -310,16 +402,69 @@ export default function ShopScreen() {
       await refreshTreatCount();
       await loadOwned();
 
-      successTimeoutRef.current = setTimeout(() => {
-        setModalVisible(false);
-        setSelectedItem(null);
-        setPurchaseSuccess(false);
+      if (isWearable(selectedItem.id)) {
+        // Wearables wait for "Wear now" or "Not now" instead of closing by themselves.
         setIsPurchasing(false);
-      }, 1200);
+      } else {
+        successTimeoutRef.current = setTimeout(() => {
+          setModalVisible(false);
+          setSelectedItem(null);
+          setPurchaseSuccess(false);
+          setIsPurchasing(false);
+        }, 1200);
+      }
     } catch {
       setIsPurchasing(false);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     }
+  };
+
+  // ── Wear / take off / show house ───────────────────────────────────────────
+  // Each handler changes the database, then reloads settings so every screen
+  // showing the dog (and the yard) picks up the change.
+  const handleWear = useCallback(async (item: ShopItemDef) => {
+    const slot = slotForItem(item.id);
+    if (!slot) return;
+    try {
+      await equipItem(slot, item.id);
+      await loadSettings();
+    } catch {
+      Alert.alert('Error', 'Could not put that on. Please try again.');
+    }
+  }, [loadSettings]);
+
+  const handleTakeOff = useCallback(async (item: ShopItemDef) => {
+    const slot = slotForItem(item.id);
+    if (!slot) return;
+    try {
+      await unequipSlot(slot);
+      await loadSettings();
+    } catch {
+      Alert.alert('Error', 'Could not take that off. Please try again.');
+    }
+  }, [loadSettings]);
+
+  // Tapping the house that is already shown goes back to "best house I own".
+  const handleShowHouse = useCallback(async (item: ShopItemDef) => {
+    try {
+      await setShownHouse(shownHouse === item.id ? null : item.id);
+      await loadSettings();
+    } catch {
+      Alert.alert('Error', 'Could not change the yard. Please try again.');
+    }
+  }, [loadSettings, shownHouse]);
+
+  const closePurchaseModal = () => {
+    setModalVisible(false);
+    setSelectedItem(null);
+    setPurchaseSuccess(false);
+    setIsPurchasing(false);
+  };
+
+  const handleWearNow = async () => {
+    const item = selectedItem;
+    closePurchaseModal();
+    if (item) await handleWear(item);
   };
 
   // ── FlatList render item ──────────────────────────────────────────────────
@@ -333,10 +478,16 @@ export default function ShopScreen() {
           item={item}
           isOwned={ownedItemIds.has(item.id)}
           onPress={handleBuyPress}
+          breed={look.breed}
+          equipped={look.equipped}
+          onWear={handleWear}
+          onTakeOff={handleTakeOff}
+          isShownHouse={shownHouse === item.id}
+          onShowHouse={handleShowHouse}
         />
       );
     },
-    [ownedItemIds]
+    [ownedItemIds, look, shownHouse, handleWear, handleTakeOff, handleShowHouse]
   );
 
   const keyExtractor = (item: ShopItemDef) => item.id;
@@ -363,10 +514,16 @@ export default function ShopScreen() {
           item={item}
           isOwned={ownedItemIds.has(item.id)}
           onPress={handleBuyPress}
+          breed={look.breed}
+          equipped={look.equipped}
+          onWear={handleWear}
+          onTakeOff={handleTakeOff}
+          isShownHouse={shownHouse === item.id}
+          onShowHouse={handleShowHouse}
         />
       );
     },
-    [ownedItemIds]
+    [ownedItemIds, look, shownHouse, handleWear, handleTakeOff, handleShowHouse]
   );
 
   return (
@@ -435,6 +592,8 @@ export default function ShopScreen() {
         onConfirm={handleConfirm}
         isPurchasing={isPurchasing}
         purchaseSuccess={purchaseSuccess}
+        onWearNow={handleWearNow}
+        onDone={closePurchaseModal}
       />
     </SafeAreaView>
   );
@@ -550,6 +709,28 @@ const styles = StyleSheet.create({
         elevation: 3,
       },
     }),
+  },
+  cardPreview: {
+    width: PREVIEW_SIZE,
+    height: PREVIEW_SIZE,
+    marginTop: 6,
+    marginBottom: 2,
+    borderRadius: 16,
+    backgroundColor: '#EAF3FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  wearButton: {
+    backgroundColor: '#1D9E75',
+  },
+  takeOffButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#3C3489',
+  },
+  takeOffButtonText: {
+    color: '#3C3489',
   },
   cardInvisible: {
     backgroundColor: 'transparent',
