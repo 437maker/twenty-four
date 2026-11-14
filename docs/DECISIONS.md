@@ -506,3 +506,70 @@ Each entry says what was decided, why, and how to reverse it.
 - **Why:** there is no walk cycle in the rig (she is drawn facing the
   viewer), and the hop reads as trotting. Under Reduce Motion there is no
   walk at all: she fades out where she is and fades in where she is going.
+
+### D52. B3 was documented with a failing test first, then fixed
+- **What:** the prompt said to flip "the real-SQLite test that already
+  documents B3". No such test existed, so one commit adds two `test.failing`
+  cases (an item purchase and a shield purchase with the ledger insert forced
+  to fail), and the next commit fixes the code and turns them into normal
+  tests.
+- **The fix:** `purchaseItem` and `purchaseShield` run the check and all
+  three statements inside one `db.withTransactionAsync`.
+- **A test fake changed:** `__tests__/queries.test.ts` fakes the database by
+  hand. It gained a `withTransactionAsync` that just runs the work.
+
+### D53. The weekly box is a chest, and its treats are paid when it is opened
+- **What:** the weekly check now adds one unopened chest (Basic → Wooden,
+  Silver → Silver, Gold → Gold) instead of adding treats. The adherence
+  rules are unchanged. The treats inside each chest average exactly what the
+  box used to pay (5, 12, 20); a test keeps the two in step.
+- **The ledger:** the `weekly_box_*` row is still written, with 0 treats. The
+  treats appear as a `chest_open` row when the chest is opened.
+- **Effect to know about:** an earned chest can also hold an item, so weekly
+  income is higher than before in value (see the EV numbers in
+  `docs/RUN_REPORT_HOUSES.md`). The treat part is the same on average.
+- **Tests that changed on purpose:** the "pays gold (20 treats)" test in
+  `useAppStore.test.ts` now expects a Gold Chest and no treat change.
+
+### D54. Chest prices: Wooden 14, Silver 34, Gold 85
+- **Rule (from the spec):** a bought chest's expected value in treats, with
+  an item counted at 50% of its shop price, must be 70% to 90% of its price.
+- **How the value is worked out:** average treats inside, plus the long-run
+  item chance times the average item price times 50%. "Long-run" includes
+  the pity rule: with chance p per chest and a guarantee after 4 misses, one
+  item arrives every (1 − (1−p)^5) / p chests.
+- **Why duplicates do not change it:** a duplicate pays 50% of the price in
+  treats, which is the same number used for an item's worth. So the value is
+  the same whatever the user owns.
+- **Checked two ways:** the formula, and 40,000 seeded simulated chests per
+  tier. Both are in `__tests__/chests.test.tsx`. Prices were picked near 78%
+  so that adding items to the shop does not push a chest out of range.
+
+### D55. The odds on the card come from the same table as the roll
+- **What:** `chestOdds()` reads `CHESTS` in `app/data/chestLoot.ts`, which is
+  the table `rollChest()` uses. The Shop shows the item chance, a row per
+  kind of item, the pity rule, and the duplicate rule on every chest card.
+- **No real money, no ads:** chests are bought with treats only. Nothing in
+  the app sells treats.
+
+### D56. A chest is opened in the database before anything moves on screen
+- **What:** `openChest()` runs first, in one transaction: remove the chest,
+  pay the treats, grant the item or shield, update the pity count, record the
+  opening, write the ledger row. Only then does the animation play.
+- **Why:** if the app is closed during the animation, the reward is already
+  stored. If any statement fails, nothing is kept and the chest is still
+  there. Three forced-failure tests cover this on real SQLite.
+
+### D57. Where chests are stored
+- **What:** three counters and the pity count are columns on the settings
+  row (`chests_wooden`, `chests_silver`, `chests_gold`, `chest_pity`), added
+  with constant defaults and a backfill (the B0 rule). A new table,
+  `chest_openings`, has one row per chest opened. It is in `ALL_TABLES`, so
+  export and "delete all my data" cover it.
+- **The pity count is shared by all three tiers.** Four empty chests of any
+  kind guarantee an item in the next chest of any kind.
+
+### D58. The screens say "treats"; the spec says "bones"
+- **What:** the currency is shown as "🦴 treats" everywhere, as before. Code
+  and the loot table use `bones` for the amount inside a chest.
+- **Why:** renaming the currency on every screen was not asked for.
