@@ -294,3 +294,120 @@ Each entry says what was decided, why, and how to reverse it.
   the three native libraries behave in Expo Go.
 - **If it is broken on the phone:** the hard-stop plan in the prompt applies.
   Revert as in D15, publish, and the PNG dog is back.
+
+---
+
+## Wardrobe run (2026-11-14)
+
+### D28. One skeleton, many breeds: a breed is data, not code
+- **What:** every breed is one file in `app/components/companion/breeds/`
+  that exports a `BreedDef`: its colors, the drawing for each part, where its
+  ears, tail, eyelids, and mouth hinge, and seven anchor points. The rig, the
+  animation, the items, the Shop, and the tests read the list in
+  `breeds/index.ts` and work for any breed in it.
+- **Why:** the spec asks for items drawn once and worn by every breed. With
+  breeds as data, adding a seventh dog is one new file and one line.
+- **Kept:** `parts.ts` and the old `PIVOTS` export still exist as thin
+  re-exports so older imports and tests keep working.
+
+### D29. Anchors are positions on the resting drawing; the layer carries them
+- **What:** an item is placed at its anchor once (plain math in
+  `placeShapes()`), then drawn on the animated layer of the body part it
+  belongs to: hats on the top-of-head layer, glasses on the head layer, neck
+  items and outfits on the body layer, held items on the right-paw layer,
+  capes and wings on a second body layer behind the dog, auras on the
+  whole-dog layer.
+- **Why:** an item on the same layer as its body part gets exactly the same
+  transform every frame, so it cannot drift. Nothing is recomputed per frame.
+- **Result:** the per-state anchor table in the spec is filled from one base
+  set per breed. The only per-state difference is that a held item leans 14
+  degrees away from the face while asleep (found in the render review).
+
+### D30. Three "outfits" and one "accessory" are not worn on the body
+- **What:** Superhero Cape, Wizard Cloak, and Mythic Mantle go in the `back`
+  slot. Legendary Aura and Arcane Matrix go in the `aura` slot. Celestial
+  Wings go in `back`. The full table is `items/itemSlots.ts`.
+- **Why:** a cape hangs behind the dog and an aura surrounds her. Putting
+  them in the `outfit` slot would stop a cape being worn over a sweater.
+- **Effect to know about:** the Shop's "Outfits" tab holds items from three
+  slots, so buying a cape does not replace the sweater she has on.
+
+### D31. Outfits are a sheet of fabric clipped to the body
+- **What:** each outfit is drawn as a wide rectangle of fabric with its
+  details, and clipped to the breed's body outline.
+- **Why:** it fits every body shape exactly, wide Corgi or narrow Shepherd,
+  with no per-breed outfit art.
+
+### D32. Shop previews are a still picture, not the animated dog
+- **What:** each wearable card shows `<CompanionSvg>`: the whole dog in one
+  SVG, not moving.
+- **Why:** the animated dog is about 20 stacked views. Fifteen of those in a
+  scrolling list would be heavy. One still SVG per card is cheap, and the
+  animated dog is one tap away on Home.
+
+### D33. The celebration party hat gives way to a worn head item
+- **What:** while celebrating, the dog gets the free party hat only if her
+  head slot is empty. A crown, halo, or flower crown stays on.
+- **Why:** it replaces D20 and D21 from the last run, which assumed one
+  accessory. The user's choice should win over the automatic hat.
+
+### D34. Switching breed is free and unlimited (product decision)
+- **What:** "Choose your dog" costs nothing, can be used any number of
+  times, and keeps the name and every equipped item.
+- **Why:** the spec says so, and says to log it as something Sahil can change.
+- **To change later:** price or unlock breeds in `setBreed()` in
+  `app/db/queries.ts` (one place), and show the price in
+  `BreedPickerScreen.tsx`.
+
+### D35. Rename rule: trimmed, 1 to 20 characters, counted as people count
+- **What:** `cleanCompanionName()` in `app/utils/companionName.ts` is the
+  single rule, used by the pop-up and by the database query. An emoji counts
+  as one character.
+- **Why:** one rule in one place means Home, Settings, and the Gallery cannot
+  disagree about what a valid name is.
+
+### D36. "Show in yard" changes the yard stage, not the house drawing
+- **What:** the yard still has five stages (0 to 4) drawn from the house
+  tier. Choosing a house shows that house's tier. Tapping the chosen house
+  again goes back to "best house I own". If a chosen house is no longer
+  owned, the yard falls back to the best one owned.
+- **Why:** the spec says not to draw 15 unique houses in this run.
+- **Follow-up:** unique art for each of the 15 houses.
+
+### D37. The new columns use constant defaults, then a backfill
+- **What:** `equipped_items` (default `'{}'`), `breed` (default `'maltese'`),
+  and `shown_house` (nullable) are added with constant defaults, followed by
+  two `UPDATE` lines that repair empty values.
+- **Why:** bug B0. SQLite refuses to add a column with a computed default to
+  a table that has rows, and `tryExec` hides the failure. Constant defaults
+  cannot fail that way. Tested on a real SQLite file that already has rows.
+
+### D38. A damaged `equipped_items` value is read as "wearing nothing"
+- **What:** `parseEquipped()` drops anything that is not a known slot holding
+  an item that belongs in that slot. An unknown breed id falls back to the
+  Maltese.
+- **Why:** a bad value in the database should never leave the yard empty or
+  crash the Home screen.
+
+### D39. The dark muzzles are a shade lighter than the dark ears
+- **What:** the German Shepherd's muzzle and the Pug's mask are drawn in a
+  lighter brown than their caps and ears.
+- **Why:** found in the render review. On a near-black muzzle the nose and
+  mouth disappeared, and the face lost its expression at 64px.
+
+### D40. This run picked up a half-finished working folder
+- **What:** an earlier session wrote most of Phase A (and parts of B, C, and
+  D) and stopped before committing. This session checked that work (types
+  clean, 254 tests passing), split it into six commits, did the render
+  review, and carried on.
+- **Effect:** the first commits of the run hold more than one phase each. The
+  per-phase commit list in `docs/RUN_REPORT_WARDROBE.md` says which is which.
+
+### D41. Published without a device test
+- **What:** both updates of this run were published after static checks
+  only: types, tests, `expo-doctor`, and the PNG renders.
+- **Why:** no iPhone or iOS simulator on the Windows laptop. The renders show
+  the drawings and where items sit. They cannot show that a fully dressed dog
+  animates smoothly. That is check W3 in `docs/MANUAL_CHECKS.md`.
+- **If it is broken on the phone:** republish the previous update:
+  `npx eas-cli update:republish --group b40b33db-969b-4176-8ccf-6902851350ef`

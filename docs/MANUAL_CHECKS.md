@@ -4,6 +4,81 @@ Jest cannot see pixels, animation, the share sheet, or iOS settings. Run these
 in Expo Go on the iPhone and tick them off. Start the app with `npx expo start`
 and scan the QR code.
 
+## Wardrobe: items, renaming, breeds (2026-11-14)
+
+Everything here was checked on the laptop only: drawings by looking at PNG
+renders (`docs/companion/items/` and `docs/companion/breeds/`), logic by
+tests. Open the newest published update in Expo Go. If the app does not open,
+note the exact error text, then on the laptop run
+`npx eas-cli update:republish --group b40b33db-969b-4176-8ccf-6902851350ef`
+to go back to the update before this run.
+
+### W1. Try on items in the Shop
+- [ ] Shop → Outfits. Every card shows your dog wearing that item, including
+  items you do not own yet.
+- [ ] Shop → Accessories. Same: hats on her head, glasses on her eyes, the
+  wand and staff in her paw, wings behind her.
+- [ ] Scrolling both lists is smooth.
+
+### W2. Wear and take off
+- [ ] Buy a cheap item. The "Purchased!" pop-up offers **Wear now** and
+  **Not now**. Tap Wear now.
+- [ ] Go to Home. She is wearing it.
+- [ ] Back in the Shop, the card now says **Take off**. Tap it. Home shows
+  her without it.
+- [ ] Own two hats. Wearing the second replaces the first.
+- [ ] Wear a hat and a neck item together. Both show.
+- [ ] Close Expo Go fully and reopen. She is still wearing the same things.
+- [ ] The Journal's empty state and the streak pop-up show the same outfit.
+
+### W3. The max outfit animates smoothly
+- [ ] Home → gear → hold the word **Settings** → Gallery. Under "Wearing"
+  tap **Max outfit**.
+- [ ] All four dogs wear seven items each and still move smoothly. When
+  running with `npx expo start` a frame counter shows: it should stay near 60.
+- [ ] Nothing slides off her: the crown stays on her head when she hops, the
+  staff stays in her paw, the wings stay behind her shoulders.
+- [ ] The glow pulses gently and the rune circle turns slowly.
+- [ ] Turn on Reduce Motion (the switch in the Gallery). The glow, halo, and
+  runes stop moving too.
+- [ ] If it stutters, write down which state and which phone.
+
+### W4. Rename from Home
+- [ ] On Home, tap her name (it has a small pencil). A pop-up opens with the
+  name in a text box.
+- [ ] Type a new name, tap Save. Home shows the new name at once.
+- [ ] Try saving an empty name: it refuses and says why.
+- [ ] A name longer than 20 characters is not accepted.
+- [ ] Settings still has the name field, and it shows the new name.
+- [ ] Gallery → **Rename** opens the same pop-up.
+
+### W5. Switch breeds with items still on
+- [ ] Press and hold the dog on Home for about a second. "Choose your dog"
+  opens. (Also: Settings → Your Dog → Choose your dog.)
+- [ ] Swipe through six dogs: Maltese, German Shepherd, Golden Retriever,
+  Corgi, Shiba Inu, Pug. Each one is wearing what yours wears now.
+- [ ] Pick one and tap Choose. Home shows the new dog, with the same name and
+  the same items.
+- [ ] The items sit in the right place on every breed: hats between or above
+  the ears, glasses over both eyes (wider on the Pug), outfits filling the body.
+- [ ] A quick tap on the dog still gives a heart, and does not open the picker.
+- [ ] Stroking her head still pets her.
+- [ ] Each breed moves like the Maltese: breathing, blinking, tail wagging,
+  ears lifting when happy, curled up asleep at night.
+
+### W6. Show in yard
+- [ ] Own two houses of different tiers. Shop → Houses: each owned house has
+  a **Show in yard** button.
+- [ ] Tap it on the cheaper house. Home shows the yard for that tier.
+- [ ] The button now reads **✓ In yard**. Tap it again: the yard goes back to
+  your best house.
+
+### W7. The shield badge
+- [ ] Buy a Streak Shield. Home shows a small blue badge with a shield and
+  the number 1, next to the streak badge.
+- [ ] Buy another: it shows 2.
+- [ ] With no shields, there is no badge.
+
 ## Maltese companion (2026-11-13)
 
 The new companion was checked on the laptop only: the drawing by looking at

@@ -175,31 +175,76 @@ gives the heart (fading in place) and the tick.
 **When the screen is not focused** (you are on another tab) all loops and
 timers stop, and start again when you come back.
 
-## Accessories
+<!-- COMPANION_ADD: sections added by the wardrobe run, 2026-11-14 -->
+## Breeds
 
-The app has no "equip" feature yet, so she wears **the most recently bought
-item the rig can draw** (`pickAccessory()` in `poses.ts`).
+There are six dogs. They share one skeleton (the same parts, the same rig,
+the same animation) and differ only in their drawing, colors, and where
+things hinge. Each is one file in `app/components/companion/breeds/`.
 
-| Shop item | Drawn as |
-|---|---|
-| Party Hat (`acc_party_hat`) | striped cone hat in place of the topknot tuft. Also worn by every dog while celebrating. Taken off for sleep |
-| Cozy Sweater (`outfit_cozy_sweater`) | a red knit scarf with one hanging end |
-| Bow Tie (`acc_bow_tie`) | a red bow tie under the chin |
-| Golden Collar (`acc_golden_collar`) | a gold collar with a tag |
+| Breed | File | What makes it read |
+|---|---|---|
+| Maltese | `maltese.ts` | white floor-length coat, long ears, topknot and bow |
+| German Shepherd | `germanShepherd.ts` | tall pointed ears, dark cap and muzzle, brow dots, dark saddle |
+| Golden Retriever | `goldenRetriever.ts` | gold coat, soft drop ears, pale chest, feathered tail |
+| Corgi | `corgi.ts` | huge upright ears, white blaze and chest, wide body, nub tail |
+| Shiba Inu | `shiba.ts` | cheek fluff, cream cheeks and brows, tail curled in a ring |
+| Pug | `pug.ts` | wide head, big wide-set eyes, dark mask, folded ears, wrinkles |
+
+All six side by side: `docs/companion/breeds/lineup.png`. Each breed's sheets
+are in `docs/companion/breeds/<breed>/`.
+
+The eyes, eyelids, nose, and mouth are built by one function
+(`breeds/common.ts`, `buildFace()`), so every dog blinks and smiles the same
+way and the family look stays consistent.
+
+**To add a breed:** copy the closest existing file, change the drawing, add
+it to the list in `breeds/index.ts`, and add its id to `BREED_IDS` in
+`breeds/types.ts`. Run `npm run render:companion` and look at the sheets. The
+tests pick the new breed up by themselves.
+
+## What she wears
+
+Every Outfit and Accessory in the Shop (30 items) can be worn. Each is drawn
+once, in `items/itemArt.ts`, and every breed wears the same drawing.
+
+**Slots.** She can wear one item in each of seven slots. Putting an item on
+replaces whatever was in its slot. The table is `items/itemSlots.ts`.
+
+| Slot | Where it sits | Items |
+|---|---|---|
+| outfit | on the body, clipped to the body shape | sweater, raincoat, vest, suits, armor, robe, coats |
+| head | top of the head | party hat, flower crown, astral crown, cosmic halo |
+| face | over the eyes | sunglasses |
+| neck | under the chin | bow tie, collar, pendant, dragon charm, infinity gem |
+| back | behind the body | superhero cape, wizard cloak, mythic mantle, celestial wings |
+| held | in the right front paw | magic wand, elemental staff, omnipotent orb |
+| aura | behind everything | legendary aura, arcane matrix |
+
+**Anchors.** Each breed says where seven points are on its drawing: `headTop`,
+`eyes`, `neck`, `chest`, `back`, `frontPaw`, `aura`. An item is moved to its
+anchor, then drawn on the layer of the body part it belongs to. That layer
+already follows the head, the body, or the paw, so the item moves with it.
+
+**Draw order,** back to front: aura, back items, tail, body, outfit, neck
+items, paws, head, face items, ears, head items, held items. One function
+decides this for all three renderers (`scene.ts`, `buildScene()`).
+
+**Effects.** The aura pulses, the halo and orb bob, the rune circle turns.
+These stop under Reduce Motion.
+
+**Review sheets:** `docs/companion/items/items-1.png` to `items-3.png` (every
+item, idle and happy), `max-outfit.png` (one item in every slot, all four
+states), and `max-outfit-64.png` (the same at the smallest size).
 
 Follow-ups, not done in this run:
-- The other 26 Outfit and Accessory items have no drawing yet. Owning one
-  changes nothing on the dog.
-- An "equip" choice in the Shop, so the user picks what she wears instead of
-  "newest wins", and so a hat and a neck item can be worn together.
-- Recoloring the topknot bow from a shop item (the bow color is a single
-  value in `palette.ts`, so this is small).
-- The Shop screen still shows items as emoji, not on the dog.
+- Houses are not drawn individually. "Show in yard" picks the yard stage.
+- Recoloring the Maltese's bow from a shop item.
 
 ## How to change her
 
 - **A color:** `palette.ts`, then `npm run render:companion` and look.
-- **A shape:** the path in `parts.ts`. Paths use absolute `M L C Q Z` commands
+- **A shape:** the path in `breeds/<breed>.ts` (the dog) or `items/itemArt.ts` (what she wears). Paths use absolute `M L C Q Z` commands
   in the 200 × 200 box. The right ear, eye, and paw are mirrored from the left
   automatically.
 - **A pose:** the numbers in `POSES` in `poses.ts`.
