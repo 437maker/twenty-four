@@ -8,10 +8,11 @@ import { CORGI } from './corgi';
 import { GERMAN_SHEPHERD } from './germanShepherd';
 import { GOLDEN_RETRIEVER } from './goldenRetriever';
 import { MALTESE } from './maltese';
+import { PUG } from './pug';
 import { SHIBA } from './shiba';
 import type { BreedDef, BreedId } from './types';
 
-export const BREEDS: BreedDef[] = [MALTESE, GERMAN_SHEPHERD, GOLDEN_RETRIEVER, CORGI, SHIBA];
+export const BREEDS: BreedDef[] = [MALTESE, GERMAN_SHEPHERD, GOLDEN_RETRIEVER, CORGI, SHIBA, PUG];
 
 export const DEFAULT_BREED: BreedId = 'maltese';
 
