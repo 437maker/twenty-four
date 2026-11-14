@@ -180,7 +180,7 @@ export function partTransform(part: PartName, p: Pose, pv: RigPivots = DEFAULT_P
       break;
     case 'earL':
       t.px = pv.earL.x; t.py = pv.earL.y;
-      t.rot = p.earL * pv.earSign * pv.earGain;
+      t.rot = 0 + p.earL * pv.earSign * pv.earGain; // "0 +" turns a negative zero into plain zero
       break;
     case 'earR':
       t.px = pv.earR.x; t.py = pv.earR.y;
