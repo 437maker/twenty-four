@@ -195,6 +195,33 @@ export async function initializeDatabase(): Promise<void> {
     );
   `);
 
+  // ── Phase C: Treat deliveries ───────────────────────────────────────────────
+  // Settings columns: track which week was last scheduled and content history.
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN last_delivery_week TEXT`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN delivery_type_history TEXT NOT NULL DEFAULT '[]'`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN delivery_content_history TEXT NOT NULL DEFAULT '[]'`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN delivery_tag_weights TEXT NOT NULL DEFAULT '{}'`);
+  await tryExec(db, `UPDATE settings SET delivery_type_history = '[]' WHERE delivery_type_history IS NULL OR delivery_type_history = ''`);
+  await tryExec(db, `UPDATE settings SET delivery_content_history = '[]' WHERE delivery_content_history IS NULL OR delivery_content_history = ''`);
+  await tryExec(db, `UPDATE settings SET delivery_tag_weights = '{}' WHERE delivery_tag_weights IS NULL OR delivery_tag_weights = ''`);
+
+  // Deliveries table: one row per scheduled delivery.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS deliveries (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      delivered_on    TEXT    NOT NULL,
+      card_type       TEXT    NOT NULL,
+      content_id      TEXT    NOT NULL,
+      why_line        TEXT    NOT NULL DEFAULT '',
+      opened          INTEGER NOT NULL DEFAULT 0,
+      feedback        TEXT,
+      saved           INTEGER NOT NULL DEFAULT 0,
+      bones_given     INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_deliveries_date ON deliveries(delivered_on);
+  `);
+
   // Ensure settings row 1 always exists
   await db.runAsync('INSERT OR IGNORE INTO settings (id) VALUES (1);');
 }

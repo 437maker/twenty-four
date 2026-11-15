@@ -20,6 +20,14 @@ const mockLogStreakEnd = jest.fn();
 const mockChangeTreats = jest.fn();
 const mockLogTreatEvent = jest.fn();
 const mockGrantChest = jest.fn();
+const mockGetPendingDeliveries = jest.fn().mockResolvedValue([]);
+const mockInsertDelivery = jest.fn().mockResolvedValue(1);
+const mockOpenDelivery = jest.fn().mockResolvedValue(undefined);
+const mockMarkDeliveryBonesGiven = jest.fn().mockResolvedValue(undefined);
+const mockSetDeliveryFeedback = jest.fn().mockResolvedValue(undefined);
+const mockSaveDelivery = jest.fn().mockResolvedValue(undefined);
+const mockDeliveryExistsForDate = jest.fn().mockResolvedValue(false);
+const mockGetRecentJournalEntries = jest.fn().mockResolvedValue([]);
 
 jest.mock('../app/db/queries', () => ({
   getSettings: (...args: any[]) => mockGetSettings(...args),
@@ -30,6 +38,14 @@ jest.mock('../app/db/queries', () => ({
   changeTreats: (...args: any[]) => mockChangeTreats(...args),
   logTreatEvent: (...args: any[]) => mockLogTreatEvent(...args),
   grantChest: (...args: any[]) => mockGrantChest(...args),
+  getPendingDeliveries: (...args: any[]) => mockGetPendingDeliveries(...args),
+  insertDelivery: (...args: any[]) => mockInsertDelivery(...args),
+  openDelivery: (...args: any[]) => mockOpenDelivery(...args),
+  markDeliveryBonesGiven: (...args: any[]) => mockMarkDeliveryBonesGiven(...args),
+  setDeliveryFeedback: (...args: any[]) => mockSetDeliveryFeedback(...args),
+  saveDelivery: (...args: any[]) => mockSaveDelivery(...args),
+  deliveryExistsForDate: (...args: any[]) => mockDeliveryExistsForDate(...args),
+  getRecentJournalEntries: (...args: any[]) => mockGetRecentJournalEntries(...args),
 }));
 
 // ── Import the store AFTER mocking ────────────────────────────────────────────
@@ -72,6 +88,10 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     chests_silver:        0,
     chests_gold:          0,
     chest_pity:           0,
+    last_delivery_week:        null,
+    delivery_type_history:     '[]',
+    delivery_content_history:  '[]',
+    delivery_tag_weights:      '{}',
     ...overrides,
   };
 }

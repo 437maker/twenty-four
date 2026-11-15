@@ -75,7 +75,7 @@ interface Props {
 }
 
 export default function SettingsScreen({ visible, onClose }: Props) {
-  const { settings, updateSettings, resetAllData, refreshTreatCount, resetRestState } = useAppStore();
+  const { settings, updateSettings, resetAllData, refreshTreatCount, resetRestState, forceDelivery } = useAppStore();
 
   const [name, setName]                       = useState('');
   const [careEnabled, setCareEnabled]         = useState(false);
@@ -305,6 +305,11 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   function testerResetRest() {
     resetRestState();
     Alert.alert('Tester', 'Rest state reset to outside.');
+  }
+
+  async function testerForceDelivery() {
+    await forceDelivery();
+    Alert.alert('Tester', 'Delivery forced for today (if one did not already exist).');
   }
 
   const appVersion = Constants.expoConfig?.version ?? '—';
@@ -621,6 +626,16 @@ export default function SettingsScreen({ visible, onClose }: Props) {
                 testID="tester-reset-rest"
               >
                 <Text style={styles.testerBtnText}>🏠 Reset rest state</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.testerBtn}
+                onPress={testerForceDelivery}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Force treat delivery"
+                testID="tester-force-delivery"
+              >
+                <Text style={styles.testerBtnText}>📦 Force delivery</Text>
               </TouchableOpacity>
             </View>
           )}

@@ -17,6 +17,7 @@ import {
   JournalEntry, StreakHistoryEntry,
   TreatHistoryEntry, TreatEventType, OwnedItem,
   SyncStatus, TaskOrigin,
+  DeliveryRow, DeliveryCardType,
 } from '../types';
 
 // ─────────────────────────────────────────────────────────────
@@ -68,6 +69,11 @@ export async function getSettings(): Promise<Settings | null> {
     chests_silver:                row.chests_silver ?? 0,
     chests_gold:                  row.chests_gold ?? 0,
     chest_pity:                   row.chest_pity ?? 0,
+    // Phase C: Treat deliveries
+    last_delivery_week:           row.last_delivery_week ?? null,
+    delivery_type_history:        row.delivery_type_history ?? '[]',
+    delivery_content_history:     row.delivery_content_history ?? '[]',
+    delivery_tag_weights:         row.delivery_tag_weights ?? '{}',
   };
 }
 
@@ -979,6 +985,94 @@ export async function getTasksForMonth(
   return getTasksForDates(dates);
 }
 
+// ─────────────────────────────────────────────────────────────
+// DELIVERIES (Phase C)
+// ─────────────────────────────────────────────────────────────
+
+function rowToDelivery(row: any): DeliveryRow {
+  return {
+    id:           row.id,
+    delivered_on: row.delivered_on,
+    card_type:    row.card_type as DeliveryCardType,
+    content_id:   row.content_id,
+    why_line:     row.why_line ?? '',
+    opened:       row.opened === 1,
+    feedback:     (row.feedback as 'up' | 'down' | null) ?? null,
+    saved:        row.saved === 1,
+    bones_given:  row.bones_given === 1,
+    created_at:   row.created_at,
+  };
+}
+
+export async function getPendingDeliveries(): Promise<DeliveryRow[]> {
+  const db   = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM deliveries WHERE opened = 0 ORDER BY delivered_on ASC LIMIT 2`
+  );
+  return rows.map(rowToDelivery);
+}
+
+export async function getAllDeliveries(limit = 50): Promise<DeliveryRow[]> {
+  const db   = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM deliveries ORDER BY delivered_on DESC LIMIT ?`,
+    [limit]
+  );
+  return rows.map(rowToDelivery);
+}
+
+export async function getSavedDeliveries(): Promise<DeliveryRow[]> {
+  const db   = await getDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM deliveries WHERE saved = 1 ORDER BY delivered_on DESC`
+  );
+  return rows.map(rowToDelivery);
+}
+
+export async function insertDelivery(
+  delivered_on: string,
+  card_type: DeliveryCardType,
+  content_id: string,
+  why_line: string
+): Promise<number> {
+  const db  = await getDatabase();
+  const res = await db.runAsync(
+    `INSERT INTO deliveries (delivered_on, card_type, content_id, why_line)
+     VALUES (?, ?, ?, ?)`,
+    [delivered_on, card_type, content_id, why_line]
+  );
+  return res.lastInsertRowId;
+}
+
+export async function openDelivery(id: number): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(`UPDATE deliveries SET opened = 1 WHERE id = ?`, [id]);
+}
+
+export async function markDeliveryBonesGiven(id: number): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(`UPDATE deliveries SET bones_given = 1 WHERE id = ?`, [id]);
+}
+
+export async function setDeliveryFeedback(id: number, feedback: 'up' | 'down'): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(`UPDATE deliveries SET feedback = ? WHERE id = ?`, [feedback, id]);
+}
+
+export async function saveDelivery(id: number, saved: boolean): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(`UPDATE deliveries SET saved = ? WHERE id = ?`, [saved ? 1 : 0, id]);
+}
+
+export async function deliveryExistsForDate(date: string): Promise<boolean> {
+  const db  = await getDatabase();
+  const row = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM deliveries WHERE delivered_on = ?`,
+    [date]
+  );
+  return row !== null;
+}
+
 // Every table the app owns. Export and wipe both walk this one list, so a
 // table can't be exported but not wiped (or the reverse). A test compares this
 // list with the tables the schema actually creates, so adding a table to
@@ -992,6 +1086,7 @@ export const ALL_TABLES = [
   'owned_items',
   'task_tombstones',
   'chest_openings',
+  'deliveries',
 ] as const;
 
 export type TableName = (typeof ALL_TABLES)[number];

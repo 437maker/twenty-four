@@ -77,6 +77,11 @@ export interface Settings {
   chests_silver: number;
   chests_gold:   number;
   chest_pity:    number;         // chests opened in a row with no item (see data/chestLoot.ts)
+  // Phase C: Treat deliveries
+  last_delivery_week:      string | null; // "YYYY-WXX" of last scheduled delivery pair
+  delivery_type_history:   string;        // JSON array of last card types (rotation guard)
+  delivery_content_history: string;       // JSON array of last content_ids (8-week repeat guard)
+  delivery_tag_weights:    string;        // JSON map of tag → weight delta from 👍/👎
 }
 
 // ─── Input types ──────────────────────────────────────────────────────────────
@@ -174,4 +179,21 @@ export interface BoxReward {
   tier: BoxTier;
   chest: ChestTier;     // the chest that was added to the inventory
   adherence: number;    // 0-100, the adherence percentage earned
+}
+
+// ─── Treat deliveries ─────────────────────────────────────────────────────────
+// Phase C: twice-weekly on-device personalised card deliveries.
+export type DeliveryCardType = 'quote' | 'book' | 'movie' | 'activity';
+
+export interface DeliveryRow {
+  id: number;
+  delivered_on: string;       // "YYYY-MM-DD"
+  card_type: DeliveryCardType;
+  content_id: string;
+  why_line: string;           // short explanation, e.g. "Your Care pillar needs a boost"
+  opened: boolean;
+  feedback: 'up' | 'down' | null;
+  saved: boolean;
+  bones_given: boolean;       // +3 bones paid for this delivery already
+  created_at: string;
 }

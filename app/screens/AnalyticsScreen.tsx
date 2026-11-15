@@ -34,7 +34,10 @@ import {
   getTasksForDates,
   getRecentStreaks,
   getJournalEntry,
+  getAllDeliveries,
 } from '../db/queries';
+import type { DeliveryRow } from '../types';
+import { getContentById } from '../utils/delivery';
 
 // Pure calculation helpers — no side effects, easy to test
 import {
@@ -105,6 +108,9 @@ export default function AnalyticsScreen() {
   // Completed streak history rows
   const [streakHistory, setStreakHistory] = useState<StreakHistoryEntry[]>([]);
 
+  // Delivery history
+  const [deliveryHistory, setDeliveryHistory] = useState<DeliveryRow[]>([]);
+
   // Loading / refreshing flag — drives the pull-to-refresh spinner
   const [refreshing, setRefreshing] = useState(false);
 
@@ -150,6 +156,10 @@ export default function AnalyticsScreen() {
       // 6. Load the most recent completed streaks (up to 5)
       const streaks = await getRecentStreaks(5);
       setStreakHistory(streaks);
+
+      // 7. Load delivery history (up to 30 most recent)
+      const deliveries = await getAllDeliveries(30);
+      setDeliveryHistory(deliveries);
     } catch (err) {
       // In a production app we'd show a toast, but for now just log
       console.error('[AnalyticsScreen] loadData error:', err);
@@ -680,6 +690,35 @@ export default function AnalyticsScreen() {
             settings={settings}
             appStartDate={settings?.app_start_date ?? null}
           />
+
+          {/* ── Section 10: Delivery history (Phase C) ───────────────────── */}
+          {deliveryHistory.length > 0 && (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>📦 Treat deliveries</Text>
+              {deliveryHistory.map((d) => {
+                const content = getContentById(d.content_id);
+                const typeLabel: Record<string, string> = {
+                  quote: '💬', book: '📚', movie: '🎬', activity: '🎯',
+                };
+                const headline = !content ? 'Delivery'
+                  : d.card_type === 'quote'
+                    ? `"${(content.item as any).text?.slice(0, 60)}…"`
+                    : (content.item as any).title ?? 'Delivery';
+                return (
+                  <View key={d.id} style={styles.deliveryHistoryRow}>
+                    <Text style={styles.deliveryHistoryEmoji}>{typeLabel[d.card_type] ?? '📦'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.deliveryHistoryHeadline} numberOfLines={2}>{headline}</Text>
+                      <Text style={styles.deliveryHistoryDate}>{friendlyDate(d.delivered_on)}</Text>
+                    </View>
+                    {d.feedback === 'up'   && <Text style={styles.deliveryHistoryFb}>👍</Text>}
+                    {d.feedback === 'down' && <Text style={styles.deliveryHistoryFb}>👎</Text>}
+                    {d.saved && <Text style={styles.deliveryHistorySaved}>★</Text>}
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </>
       )}
     </ScrollView>
@@ -1077,4 +1116,37 @@ const styles = StyleSheet.create({
     height:          1,
     backgroundColor: '#F0F0F0',
   },
+
+  // Phase C: Delivery history section
+  sectionBlock: {
+    backgroundColor: '#FFF',
+    borderRadius:    16,
+    marginHorizontal: 16,
+    marginBottom:    20,
+    padding:         16,
+    shadowColor:     '#000',
+    shadowOpacity:   0.05,
+    shadowRadius:    6,
+    shadowOffset:    { width: 0, height: 2 },
+    elevation:       2,
+  },
+  sectionTitle: {
+    fontSize:    16,
+    fontWeight:  '700',
+    color:       '#1F2937',
+    marginBottom: 12,
+  },
+  deliveryHistoryRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 10,
+  },
+  deliveryHistoryEmoji: { fontSize: 22, width: 28, textAlign: 'center' },
+  deliveryHistoryHeadline: { fontSize: 13, color: '#374151', fontWeight: '500' },
+  deliveryHistoryDate: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  deliveryHistoryFb: { fontSize: 16 },
+  deliveryHistorySaved: { fontSize: 14, color: '#D97706', fontWeight: '700' },
 });

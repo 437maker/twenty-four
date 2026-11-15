@@ -45,6 +45,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppStore } from '../store/useAppStore';
+import DeliveryCard from '../components/DeliveryCard';
 import NovaCompanion from '../components/NovaCompanion';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
@@ -666,6 +667,11 @@ export default function HomeScreen() {
     syncWithGoogle,
     refreshTreatCount,
     restResetToken,
+    pendingDeliveries,
+    openDeliveryAndGiveBones,
+    dismissDelivery,
+    giveDeliveryFeedback,
+    toggleDeliverySaved,
   } = useAppStore();
 
   const [yesterdayAdherence, setYesterdayAdherence] = useState(0);
@@ -888,6 +894,18 @@ export default function HomeScreen() {
             <PillarBar key={row.key} row={row} index={i} playKey={playKey} reduceMotion={reduceMotion} />
           ))}
         </TouchableOpacity>
+
+        {/* Treat deliveries (up to 2 pending) */}
+        {pendingDeliveries.map((delivery) => (
+          <DeliveryCard
+            key={delivery.id}
+            delivery={delivery}
+            onOpen={() => openDeliveryAndGiveBones(delivery.id)}
+            onDismiss={() => dismissDelivery(delivery.id)}
+            onFeedback={(fb) => giveDeliveryFeedback(delivery.id, fb)}
+            onSave={(saved) => toggleDeliverySaved(delivery.id, saved)}
+          />
+        ))}
 
         {/* Treat card (tap → Shop) */}
         <TouchableOpacity style={styles.treatCard} onPress={() => navigation.navigate('Shop')} activeOpacity={0.85}>

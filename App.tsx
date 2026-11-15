@@ -50,7 +50,7 @@ const Stack = createNativeStackNavigator();
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const { isOnboarded, loadSettings, checkStreakOnOpen } = useAppStore();
+  const { isOnboarded, loadSettings, checkStreakOnOpen, checkDeliveriesOnOpen } = useAppStore();
 
   useEffect(() => {
     async function bootstrap() {
@@ -61,6 +61,8 @@ function App() {
         await loadSettings();
         // 3. Check streak on every launch (increment if consecutive day, reset if missed)
         await checkStreakOnOpen();
+        // 4b. Schedule treat deliveries for this week
+        await checkDeliveriesOnOpen();
         // 4. Schedule notifications (idempotent — cancels and reschedules)
         const { settings } = useAppStore.getState();
         if (settings?.notifications_enabled !== false) {

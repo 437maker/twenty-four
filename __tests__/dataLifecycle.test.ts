@@ -80,6 +80,7 @@ async function seedUsedApp(): Promise<void> {
   await purchaseShield(50);
   rawDb().prepare(`INSERT INTO task_tombstones (google_event_id) VALUES ('evt_123')`).run();
   rawDb().prepare(`INSERT INTO chest_openings (tier, bones) VALUES ('wooden', 5)`).run();
+  rawDb().prepare(`INSERT INTO deliveries (delivered_on, card_type, content_id, why_line) VALUES ('${DAY}', 'quote', 'q01', 'Test delivery')`).run();
 }
 
 beforeEach(async () => {
@@ -89,6 +90,7 @@ beforeEach(async () => {
     settings: null, isOnboarded: false, todaysTasks: [],
     pendingCelebration: false, milestoneStreak: 0, streakJustBroke: false,
     pendingBoxReward: null, shieldConsumed: false, isSyncing: false,
+    pendingDeliveries: [],
   });
 });
 

@@ -32,6 +32,14 @@ jest.mock('../app/db/queries', () => ({
   changeTreats: (...args: any[]) => mockChangeTreats(...args),
   logTreatEvent: (...args: any[]) => mockLogTreatEvent(...args),
   grantChest: (...args: any[]) => mockGrantChest(...args),
+  getPendingDeliveries: jest.fn().mockResolvedValue([]),
+  insertDelivery: jest.fn().mockResolvedValue(1),
+  openDelivery: jest.fn().mockResolvedValue(undefined),
+  markDeliveryBonesGiven: jest.fn().mockResolvedValue(undefined),
+  setDeliveryFeedback: jest.fn().mockResolvedValue(undefined),
+  saveDelivery: jest.fn().mockResolvedValue(undefined),
+  deliveryExistsForDate: jest.fn().mockResolvedValue(false),
+  getRecentJournalEntries: jest.fn().mockResolvedValue([]),
 }));
 
 import { useAppStore } from '../app/store/useAppStore';
@@ -79,6 +87,10 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     chests_silver: 0,
     chests_gold: 0,
     chest_pity: 0,
+    last_delivery_week:        null,
+    delivery_type_history:     '[]',
+    delivery_content_history:  '[]',
+    delivery_tag_weights:      '{}',
     ...overrides,
   };
 }
