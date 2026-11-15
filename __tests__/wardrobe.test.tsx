@@ -102,8 +102,8 @@ afterEach(() => {
 // Item → slot mapping
 // ─────────────────────────────────────────────────────────────────────────────
 describe('item slots', () => {
-  test('the shop has 15 outfits and 15 accessories, and all 30 are mapped', () => {
-    expect(WEARABLES).toHaveLength(30);
+  test('the shop has 29 outfits and 21 accessories, and all 50 are mapped', () => {
+    expect(WEARABLES).toHaveLength(50);
     for (const item of WEARABLES) {
       expect(SLOTS).toContain(ITEM_SLOTS[item.id]);
     }
@@ -112,7 +112,7 @@ describe('item slots', () => {
   test('nothing is mapped that the shop does not sell as an outfit or accessory', () => {
     const sold = new Set(WEARABLES.map((i) => i.id));
     for (const id of Object.keys(ITEM_SLOTS)) expect(sold.has(id)).toBe(true);
-    expect(Object.keys(ITEM_SLOTS)).toHaveLength(30);
+    expect(Object.keys(ITEM_SLOTS)).toHaveLength(50);
   });
 
   test('houses and the streak shield are not wearable', () => {
@@ -335,7 +335,7 @@ describe('equip system', () => {
     expect(await getEquipped()).toEqual({ neck: 'acc_bow_tie' });
   });
 
-  test('every one of the 30 items can be bought and worn in its slot', async () => {
+  test('every one of the 50 items can be bought and worn in its slot', async () => {
     for (const item of WEARABLES) {
       await buy(item.id);
       expect(await equipItem(ITEM_SLOTS[item.id], item.id)).toBe(true);
