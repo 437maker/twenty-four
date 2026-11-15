@@ -56,8 +56,8 @@ function numbersOf(s: Shape): number[] {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('house definitions', () => {
   test('every House item in the shop has a drawing, and nothing else does', () => {
-    expect(HOUSE_ITEMS).toHaveLength(15);
-    expect(HOUSES).toHaveLength(15);
+    expect(HOUSE_ITEMS).toHaveLength(19);
+    expect(HOUSES).toHaveLength(19);
     expect(HOUSES.map((h) => h.id).sort()).toEqual(HOUSE_ITEMS.map((i) => i.id).sort());
     for (const item of HOUSE_ITEMS) expect(getHouse(item.id)?.id).toBe(item.id);
     expect(getHouse('outfit_cozy_sweater')).toBeNull();

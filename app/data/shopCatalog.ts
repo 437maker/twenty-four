@@ -66,6 +66,12 @@ export const SHOP_CATALOG: ShopItemDef[] = [
   { id: 'acc_football',          category: 'accessory', tier: 2, name: 'Football',         description: 'Carry it over the line — every yard counts.',                price: 44,  emoji: '🏈' },
   { id: 'acc_hockey_stick',      category: 'accessory', tier: 2, name: 'Hockey Stick',     description: 'Keep your stick on the ice and your eye on the goal.',       price: 46,  emoji: '🏒' },
 
+  // ── Stadium houses (Tier 3). App colors only; no real team names, logos, or league marks. ──
+  { id: 'house_football_stadium', category: 'house', tier: 3, name: 'Gridiron Stadium',  description: 'Purple stands, amber goalposts, and a "24" on the scoreboard.',   price: 155, emoji: '🏈' },
+  { id: 'house_baseball_park',    category: 'house', tier: 3, name: 'Diamond Ballpark',  description: 'Teal stands, pennant flags, and a ball arcing over the wall.',     price: 150, emoji: '⚾' },
+  { id: 'house_basketball_arena', category: 'house', tier: 3, name: 'Hoop Arena',        description: 'Hardwood floors, a sweeping spotlight, and a "24" jumbotron.',     price: 150, emoji: '🏀' },
+  { id: 'house_hockey_rink',      category: 'house', tier: 3, name: 'Ice Rink Arena',    description: 'Blue stands, white ice, and a puck gliding toward the net.',       price: 155, emoji: '🏒' },
+
   // ── House ─────────────────────────────────────────────────────────────────────
   { id: 'house_cozy_den',        category: 'house', tier: 1, name: 'Cozy Den',             description: 'A snug little home for well-deserved rest.',                 price: 30,  emoji: '🏠' },
   { id: 'house_beach_shack',     category: 'house', tier: 1, name: 'Beach Shack',          description: 'Sun, sand, and a life in balance.',                          price: 28,  emoji: '🏝️' },

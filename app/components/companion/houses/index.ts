@@ -1,4 +1,4 @@
-// houses/index.ts — the 15 houses, in shop order.
+// houses/index.ts — the 19 houses, in shop order.
 //
 // To add a house: draw a HouseDef (see tier1.ts for the plainest example),
 // add it here, and add the shop item with the same id to data/shopCatalog.ts.
@@ -9,6 +9,7 @@ import { DESERT_OASIS, MOUNTAIN_LODGE, TREEHOUSE } from './tier2';
 import { CLOUD_CASTLE, SKY_TOWER, UNDERWATER_PALACE } from './tier3';
 import { DRAGONS_LAIR, SPACE_STATION, TIME_FORTRESS } from './tier4';
 import { COSMIC_SANCTUARY, DIMENSION_X, REALM_OF_GODS } from './tier5';
+import { DIAMOND_BALLPARK, GRIDIRON_STADIUM, HOOP_ARENA, ICE_RINK_ARENA } from './stadiums';
 import { STARTER_HOUSE } from './starter';
 import type { HouseDef } from './types';
 
@@ -18,6 +19,7 @@ export const HOUSES: HouseDef[] = [
   COZY_DEN, BEACH_SHACK, FOREST_CABIN,
   TREEHOUSE, MOUNTAIN_LODGE, DESERT_OASIS,
   CLOUD_CASTLE, UNDERWATER_PALACE, SKY_TOWER,
+  GRIDIRON_STADIUM, DIAMOND_BALLPARK, HOOP_ARENA, ICE_RINK_ARENA,
   SPACE_STATION, DRAGONS_LAIR, TIME_FORTRESS,
   REALM_OF_GODS, COSMIC_SANCTUARY, DIMENSION_X,
 ];
