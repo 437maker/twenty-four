@@ -395,11 +395,12 @@ function noop() {}
 // Yard stage: when the stage changes, the OLD yard stays drawn underneath while
 // the NEW yard fades in on top (opacity 0 → 1, 700ms). Then the old layer is removed.
 function YardHeader({
-  height, width, stage, house, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog, inSleepBlock,
+  height, width, stage, house, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog, inSleepBlock, restResetToken,
 }: {
   height: number; width: number; stage: number; house: HouseDef | null; night: boolean; novaState: NovaState; inSleepBlock: boolean;
   balanceScore: number; reduceMotion: boolean; onSettings: () => void;
   companionName: string; breed: string; equipped: Equipped; onLongPressDog: () => void;
+  restResetToken: number;
 }) {
   const nightOpacity = useRef(new Animated.Value(night ? 1 : 0)).current;
   useEffect(() => {
@@ -499,7 +500,7 @@ function YardHeader({
         // With a house: she stands at the house's own spot, and can go inside
         // (tap the house, or by herself during a Sleep block). See YardDog.
         <YardDog
-          key={shownHouse.id}
+          key={`${shownHouse.id}-${restResetToken}`}
           house={shownHouse}
           fit={fit}
           outsideState={novaState}
@@ -702,6 +703,7 @@ export default function HomeScreen() {
     setShieldConsumed,
     syncWithGoogle,
     refreshTreatCount,
+    restResetToken,
   } = useAppStore();
 
   const [yesterdayAdherence, setYesterdayAdherence] = useState(0);
@@ -864,6 +866,7 @@ export default function HomeScreen() {
           equipped={look.equipped}
           onLongPressDog={() => setBreedPickerVisible(true)}
           onSettings={() => setSettingsVisible(true)}
+          restResetToken={restResetToken}
         />
 
         {/* Name + streak + yesterday's adherence */}

@@ -671,3 +671,36 @@ Each entry says what was decided, why, and how to reverse it.
   second try.
 - **If it is broken on the phone:** go back to the update before this run:
   `npx eas-cli update:republish --group 09e3c12f-d5b7-4fac-8d7b-371d8a024c89`
+
+---
+
+## Tester menu (2026-11-14)
+
+### D69. Hidden tester menu behind 7 taps on the version label — REMOVE BEFORE APP STORE RELEASE
+- **What:** tapping the app version text at the bottom of Settings 7 times
+  reveals a "Tester" section with three buttons: **+500 bones** (calls
+  `changeTreats(500)`), **+1 of each chest tier** (calls `grantChest` for
+  wooden, silver, and gold), and **Reset rest state** (increments
+  `restResetToken` in the store, which causes `YardDog` to remount with
+  `REST_START` = `outside`). The tap counter is a ref and resets when
+  Settings is closed.
+- **Why:** manual testing on a published EAS update requires a way to seed
+  state without `__DEV__` or the Metro bundler. The trigger (7 taps) is
+  invisible and non-obvious enough that a real user is very unlikely to find it.
+- **Works in published updates:** `__DEV__` is false in an EAS update, so the
+  existing Developer section is hidden. The tester section uses only the tap
+  counter; it has no `__DEV__` guard.
+- **Reverse / removal steps before App Store submission:**
+  1. Remove the `testerUnlocked`, `versionTapCount`, `handleVersionTap`,
+     `testerAddBones`, `testerAddChests`, `testerResetRest`, and `appVersion`
+     declarations in `SettingsScreen.tsx`.
+  2. Remove the "Tester" section and version label JSX from the same file.
+  3. Remove the `testerSection`, `testerBtn`, `testerBtnText`, and
+     `versionText` style entries.
+  4. Remove the `changeTreats` and `grantChest` imports from `SettingsScreen.tsx`.
+  5. Remove `restResetToken` and `resetRestState` from `useAppStore.ts`
+     (interface, initial value, and action).
+  6. Remove `restResetToken` from the destructure in `HomeScreen.tsx` and
+     revert the `YardDog` key back to `{shownHouse.id}`.
+  7. Delete `__tests__/testerMenu.test.ts`.
+  8. See release blocker in `docs/BUGS.md`.

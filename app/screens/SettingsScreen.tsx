@@ -4,7 +4,7 @@
 // Phase 3:  Export writes a real .json file and opens the share sheet;
 //           "Delete all my data" with a two-step confirmation.
 
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -17,6 +17,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { useAppStore } from '../store/useAppStore';
 import CustomSlider from '../components/CustomSlider';
 import { getTodayString } from '../utils/dateHelpers';
@@ -27,6 +28,7 @@ import {
 } from '../utils/notifications';
 import { exportDataToFile } from '../services/dataExport';
 import { clearTokens } from '../services/googleAuth';
+import { changeTreats, grantChest } from '../db/queries';
 import CalendarSettingsScreen from './CalendarSettingsScreen';
 import CompanionGalleryScreen from './CompanionGalleryScreen';
 import BreedPickerScreen from './BreedPickerScreen';
@@ -53,7 +55,7 @@ interface Props {
 }
 
 export default function SettingsScreen({ visible, onClose }: Props) {
-  const { settings, updateSettings, resetAllData } = useAppStore();
+  const { settings, updateSettings, resetAllData, refreshTreatCount, resetRestState } = useAppStore();
 
   const [name, setName]                       = useState('');
   const [careEnabled, setCareEnabled]         = useState(false);
@@ -72,6 +74,9 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   const [calendarOpen, setCalendarOpen]       = useState(false);
   const [galleryOpen, setGalleryOpen]         = useState(false); // Companion Gallery (review screen)
   const [breedOpen, setBreedOpen]             = useState(false); // "Choose your dog"
+  // Tester menu: tap the version label 7 times to unlock (REMOVE BEFORE APP STORE RELEASE)
+  const versionTapCount = useRef(0);
+  const [testerUnlocked, setTesterUnlocked]   = useState(false);
 
   useEffect(() => {
     if (visible && settings) {
@@ -255,6 +260,34 @@ export default function SettingsScreen({ visible, onClose }: Props) {
     }
   }
 
+  // ── Tester menu actions (REMOVE BEFORE APP STORE RELEASE) ───────────────────
+  function handleVersionTap() {
+    versionTapCount.current += 1;
+    if (versionTapCount.current >= 7) {
+      setTesterUnlocked(true);
+    }
+  }
+
+  async function testerAddBones() {
+    await changeTreats(500);
+    await refreshTreatCount();
+    Alert.alert('Tester', '+500 bones added.');
+  }
+
+  async function testerAddChests() {
+    await grantChest('wooden');
+    await grantChest('silver');
+    await grantChest('gold');
+    await refreshTreatCount();
+    Alert.alert('Tester', '+1 of each chest tier added.');
+  }
+
+  function testerResetRest() {
+    resetRestState();
+    Alert.alert('Tester', 'Rest state reset to outside.');
+  }
+
+  const appVersion = Constants.expoConfig?.version ?? '—';
   const presets = careEnabled ? PRESETS_WITH_CARE : PRESETS_NO_CARE;
 
   return (
@@ -531,6 +564,56 @@ export default function SettingsScreen({ visible, onClose }: Props) {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* ── Tester (REMOVE BEFORE APP STORE RELEASE, see docs/DECISIONS.md D69) ── */}
+          {testerUnlocked && (
+            <View style={[styles.section, styles.testerSection]}>
+              <Text style={styles.sectionTitle}>Tester</Text>
+              <Text style={styles.sectionSub}>
+                Quick shortcuts for manual testing. Remove before App Store release.
+              </Text>
+              <TouchableOpacity
+                style={styles.testerBtn}
+                onPress={testerAddBones}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Add 500 bones"
+                testID="tester-add-bones"
+              >
+                <Text style={styles.testerBtnText}>🦴 +500 bones</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.testerBtn}
+                onPress={testerAddChests}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Add one of each chest tier"
+                testID="tester-add-chests"
+              >
+                <Text style={styles.testerBtnText}>📦 +1 of each chest tier</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.testerBtn}
+                onPress={testerResetRest}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Reset rest state"
+                testID="tester-reset-rest"
+              >
+                <Text style={styles.testerBtnText}>🏠 Reset rest state</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Version label — tap 7 times to unlock the Tester section */}
+          <TouchableOpacity
+            onPress={handleVersionTap}
+            activeOpacity={1}
+            accessible={false}
+            testID="settings-version"
+          >
+            <Text style={styles.versionText}>v{appVersion}</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         {/* Nested modal: choose a breed */}
@@ -649,6 +732,32 @@ const styles = StyleSheet.create({
     fontSize:  12,
     color:     '#9CA3AF',
     marginTop:  4,
+  },
+
+  // Tester
+  testerSection: {
+    borderWidth:  2,
+    borderColor:  '#D97706',
+    borderStyle:  'dashed',
+  },
+  testerBtn: {
+    marginTop:         8,
+    backgroundColor:   '#D97706',
+    borderRadius:      12,
+    paddingVertical:   12,
+    paddingHorizontal: 20,
+    alignItems:        'center',
+  },
+  testerBtnText: {
+    color:      '#FFFFFF',
+    fontSize:   15,
+    fontWeight: '700',
+  },
+  versionText: {
+    textAlign:    'center',
+    fontSize:     12,
+    color:        '#D1D5DB',
+    paddingBottom: 8,
   },
 
   // Export

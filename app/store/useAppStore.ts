@@ -72,6 +72,11 @@ interface AppState {
   // App.tsx shows onboarding whenever isOnboarded is false, so this is also
   // what sends the user back to onboarding.
   resetAllData: () => Promise<void>;
+
+  // Tester menu: incrementing this token causes YardDog to remount, which
+  // resets its rest state to outside/awake. REMOVE BEFORE APP STORE RELEASE.
+  restResetToken: number;
+  resetRestState: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -84,6 +89,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingBoxReward:   null,
   shieldConsumed:     false,
   isSyncing:          false,
+  restResetToken:     0,
 
   loadSettings: async () => {
     const settings = await getSettings();
@@ -335,4 +341,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }));
     }
   },
+
+  // REMOVE BEFORE APP STORE RELEASE (tester menu, see docs/DECISIONS.md D69)
+  resetRestState: () => set((s) => ({ restResetToken: s.restResetToken + 1 })),
 }));

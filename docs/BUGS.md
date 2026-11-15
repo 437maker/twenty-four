@@ -5,6 +5,19 @@ are **reported, not fixed** until Sahil asks. Each has file, repro, and impact.
 
 Line numbers are as of the commit that added the entry.
 
+## Release blockers
+
+### RB1. RELEASE BLOCKER: hidden tester menu must be removed before App Store submission
+- **Where:** `app/screens/SettingsScreen.tsx` (tester section + version tap counter),
+  `app/store/useAppStore.ts` (`restResetToken`, `resetRestState`),
+  `app/screens/HomeScreen.tsx` (`restResetToken` in YardDog key),
+  `__tests__/testerMenu.test.ts`.
+- **What:** tapping the version label 7 times reveals a "Tester" section with
+  `+500 bones`, `+1 of each chest tier`, and `Reset rest state` buttons. These
+  bypass normal earn mechanics and must not ship to end users.
+- **How to remove:** follow the step-by-step in `docs/DECISIONS.md` D69.
+- **Added:** 2026-11-14.
+
 ## Open
 
 ### B0. HIGH: upgrading a database that already has tasks breaks task creation
