@@ -9,7 +9,10 @@ import { DESERT_OASIS, MOUNTAIN_LODGE, TREEHOUSE } from './tier2';
 import { CLOUD_CASTLE, SKY_TOWER, UNDERWATER_PALACE } from './tier3';
 import { DRAGONS_LAIR, SPACE_STATION, TIME_FORTRESS } from './tier4';
 import { COSMIC_SANCTUARY, DIMENSION_X, REALM_OF_GODS } from './tier5';
+import { STARTER_HOUSE } from './starter';
 import type { HouseDef } from './types';
+
+export { STARTER_HOUSE };
 
 export const HOUSES: HouseDef[] = [
   COZY_DEN, BEACH_SHACK, FOREST_CABIN,

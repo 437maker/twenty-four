@@ -704,3 +704,29 @@ Each entry says what was decided, why, and how to reverse it.
      revert the `YardDog` key back to `{shownHouse.id}`.
   7. Delete `__tests__/testerMenu.test.ts`.
   8. See release blocker in `docs/BUGS.md`.
+
+## Starter doghouse Rest support (2026-11-14)
+
+### D70. Starter doghouse (stage 0) now uses YardDog for the rest/going-inside flow
+- **What:** when no house item is owned, `HomeScreen` previously rendered a
+  plain `NovaSprite` with no tap-to-rest behaviour. It now renders `<YardDog
+  house={STARTER_HOUSE}>` instead. The visual doghouse (React Native views
+  drawn by `YardStageArt`) is unchanged; `STARTER_HOUSE` only carries the
+  interaction geometry (dog/door/rest/hit positions in scene units).
+- **Why:** the dog already walks into purchased houses to rest. It was
+  inconsistent that the starting doghouse, which looks like a real house, did
+  nothing when tapped. The same state machine (`restMachine.ts`) handles both.
+- **What was removed:** the `NovaSprite` inner component in `HomeScreen.tsx`,
+  the `noop` and `novaSize` helpers, the `novaSpot` style, and the
+  `import Companion` that only `NovaSprite` used.
+- **New files:** `app/components/companion/houses/starter.ts` — the
+  `HouseDef` geometry. It is exported from `houses/index.ts` but intentionally
+  not added to `HOUSES[]` and not listed in the shop.
+- **Scene-coordinate derivation:** stage-0 view uses `bottom: '24%',
+  right: '8%'`, 76 × 46px walls on a 390 × 253px yard. `sceneFit` gives
+  k ≈ 1.265, vx ≈ −4.15, vy = 0. Dog spot matches the tier-1 layout
+  (x 76, y 193, size 108) for a consistent dog size.
+- **Reverse:** delete `starter.ts`, remove its export from `index.ts`,
+  revert the `HomeScreen.tsx` import and the `<YardDog>` JSX to the previous
+  `shownHouse ? <YardDog …> : <NovaSprite …>` ternary, and delete
+  `__tests__/starterHouse.test.tsx`.

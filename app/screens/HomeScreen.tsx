@@ -46,10 +46,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppStore } from '../store/useAppStore';
 import NovaCompanion from '../components/NovaCompanion';
-import Companion from '../components/companion/Companion';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
-import { getHouse } from '../components/companion/houses';
+import { getHouse, STARTER_HOUSE } from '../components/companion/houses';
 import type { HouseDef } from '../components/companion/houses';
 import { HouseScene, NIGHT_TINT, skyColor } from '../components/companion/houses/HouseScene';
 import { sceneFit } from '../components/companion/houses/types';
@@ -358,35 +357,6 @@ function YardStageArt({ stage, night }: { stage: number; night: boolean }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The companion in the yard — ANIMATION 4
-// ─────────────────────────────────────────────────────────────────────────────
-// The animated Maltese from components/companion. She breathes, blinks, wags,
-// hops when happy, and curls up at night. All of that motion is driven by
-// Reanimated on the UI thread inside <Companion>; this wrapper only passes the
-// state, breed, and equipped items down. Tapping her plays the tap reaction
-// (squash, heart, haptic), stroking her head for a second makes her lean in,
-// and pressing and holding opens "Choose your dog".
-function NovaSprite({
-  state, size, reduceMotion, name, breed, equipped, onLongPress,
-}: {
-  state: NovaState; size: number; reduceMotion: boolean; name: string;
-  breed: string; equipped: Equipped; onLongPress: () => void;
-}) {
-  return (
-    <Companion
-      state={state}
-      size={size}
-      reduceMotion={reduceMotion}
-      breed={breed}
-      equipped={equipped}
-      label={`${name} is ${state}. Tap to pet. Press and hold to choose a different dog.`}
-      onPress={noop}
-      onLongPress={onLongPress}
-    />
-  );
-}
-function noop() {}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Yard header — ANIMATIONS 2 (night crossfade) and 3 (yard stage crossfade)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -436,8 +406,6 @@ function YardHeader({
     ],
     [height],
   );
-
-  const novaSize = Math.min(150, height * 0.62);
 
   // ── The owned house: its own backdrop, drawn over the default yard ──
   // When the house changes, the old one stays underneath while the new one
@@ -496,35 +464,21 @@ function YardHeader({
         </Animated.View>
       )}
 
-      {shownHouse ? (
-        // With a house: she stands at the house's own spot, and can go inside
-        // (tap the house, or by herself during a Sleep block). See YardDog.
-        <YardDog
-          key={`${shownHouse.id}-${restResetToken}`}
-          house={shownHouse}
-          fit={fit}
-          outsideState={novaState}
-          name={companionName}
-          breed={breed}
-          equipped={equipped}
-          reduceMotion={reduceMotion}
-          inSleepBlock={inSleepBlock}
-          onLongPress={onLongPressDog}
-        />
-      ) : (
-        /* Nova in front of the starter doghouse */
-        <View style={[styles.novaSpot, { bottom: height * 0.02 }]}>
-          <NovaSprite
-            state={novaState}
-            size={novaSize}
-            reduceMotion={reduceMotion}
-            name={companionName}
-            breed={breed}
-            equipped={equipped}
-            onLongPress={onLongPressDog}
-          />
-        </View>
-      )}
+      {/* She can go inside whether a house is owned or not. The starter
+          doghouse is a view-based fallback drawn by YardStageArt; STARTER_HOUSE
+          supplies only the interaction geometry (dog/door/rest/hit positions). */}
+      <YardDog
+        key={`${(shownHouse ?? STARTER_HOUSE).id}-${restResetToken}`}
+        house={shownHouse ?? STARTER_HOUSE}
+        fit={fit}
+        outsideState={novaState}
+        name={companionName}
+        breed={breed}
+        equipped={equipped}
+        reduceMotion={reduceMotion}
+        inSleepBlock={inSleepBlock}
+        onLongPress={onLongPressDog}
+      />
 
       {/* Compact balance score next to Nova */}
       <BalanceChip score={balanceScore} />
@@ -1081,7 +1035,6 @@ const styles = StyleSheet.create({
   pool: { position: 'absolute', bottom: '4%', right: '22%', width: 64, height: 16, borderRadius: 10, backgroundColor: '#60A5FA', borderWidth: 2, borderColor: '#E0F2FE' },
   treeTop: { position: 'absolute', width: 40, height: 40, borderRadius: 20, backgroundColor: '#2F855A' },
   treeTrunk: { position: 'absolute', width: 7, height: 22, backgroundColor: '#7A4E2D' },
-  novaSpot: { position: 'absolute', left: '18%' },
 
   balanceChip: {
     position: 'absolute', left: 12, top: 12,
