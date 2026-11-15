@@ -419,3 +419,84 @@ Do this only after a successful export, or on data you do not mind losing.
 - [ ] After `eas update`, close the laptop.
 - [ ] Expo Go → sign in with the same Expo account → the project appears under your account → open the latest update on the `main` branch.
 - [ ] The app opens and your data is there.
+
+## Stadiums and deliveries run (2026-11-15)
+
+Covers Phase A (four stadium houses), Phase B (ten hero accessories Tiers 3–5),
+and Phase C (twice-weekly treat deliveries). Open update group
+`6c6b2cc4-9793-4fcc-a1b3-044ec7459ea2` in Expo Go.
+To roll back: `npx eas-cli update:republish --group 3e1d507f-dbcb-4ef6-b8af-74552da73a81`
+
+### D1. Stadium houses in the Shop and yard
+
+- [ ] Shop → Houses. Four stadium houses appear in Tier 3: Arena Bowl, Track
+  Oval, Court House, Velodrome. Each card shows a backdrop distinct from every
+  other house.
+- [ ] Tap the picture on each. The preview pop-up opens showing the backdrop
+  moving, with the dog standing at the door. **Buy** or **Show in yard** shows.
+- [ ] Buy or show each in the yard in turn. Home updates to the matching backdrop.
+- [ ] Arena Bowl: floodlit stadium bowl visible, scoreboard in the background.
+- [ ] Track Oval: outdoor track oval with start-line markings.
+- [ ] Court House: hardwood court, centre circle, bleachers.
+- [ ] Velodrome: banked cycling track, overhead lights.
+- [ ] None of the four shows any real team name, league name, or real emblem.
+- [ ] The dog walks in and out of each one the same way as other houses (H4).
+- [ ] Ambient animation matches the venue (lights, motion, atmosphere).
+
+### D2. Hero accessories in the Shop
+
+- [ ] Shop → Accessories. Ten new hero items appear in Tiers 3–5:
+  - Tier 3: Guardian Shield, Mystic Staff, Power Gauntlet
+  - Tier 4: Storm Wings, Quantum Orb, Solar Crown, Shadow Cloak
+  - Tier 5: Arcane Tome, Titan Lance, Celestial Halo
+- [ ] Every card shows the dog wearing the item before purchase.
+- [ ] Equip one Tier 4 or 5 item. Home shows it on the dog, in the right position.
+- [ ] Equip a hero suit and a hero accessory together. Both show on Home at once.
+- [ ] Equip a hero accessory on two different breeds. The item sits in the right
+  place on both and nothing pokes outside the dog's bounding box.
+- [ ] No item name or card text mentions Marvel, DC, or any other published
+  character, team, or league.
+
+### D3. Treat deliveries arriving
+
+- [ ] Settings → tester section → **Force delivery**. If the button is not
+  visible, scroll to the bottom of Settings.
+- [ ] Go back to Home. A delivery card appears above the treat card. It shows a
+  closed box with a "tap to open" hint.
+- [ ] Tap the box. It opens. The card shows content (a quote, book, movie, or
+  activity suggestion), a one-line "why you got this" reason, and 👍 / 👎
+  feedback buttons and a Save button.
+- [ ] The footer reads **"Picked on your phone from your week"** (exact text).
+- [ ] +3 bones are added to the treat count when the card opens.
+- [ ] Tap 👍. The card stays open but the button is now selected.
+- [ ] Tap 👎. The 👍 deselects and 👎 is selected.
+- [ ] Tap Save (the star icon). The card stays open and Save is highlighted.
+- [ ] Swipe or dismiss the card. It disappears from Home.
+- [ ] Force a second delivery in the same session. A second card appears (max 2
+  cards on Home at once; a third force tap should not add a third card).
+
+### D4. Delivery history in Analytics
+
+- [ ] After opening at least two deliveries, go to Analytics → scroll down.
+  A "Treat deliveries" section shows each opened delivery with its emoji
+  (📖 for a book, 🎬 for a movie, 💡 for a quote, 🏃 for an activity), its
+  headline, the date it arrived, and the feedback icon if given.
+- [ ] A saved delivery shows a filled star next to its row.
+- [ ] Rows are sorted newest first.
+- [ ] Scrolling is smooth.
+
+### D5. Support card (crisis path)
+
+To test this you need to enter crisis language in a journal entry.
+**Do this on a test account or after a data wipe, not on your real data.**
+
+- [ ] Journal → write an entry containing "I want to die" or "no reason to live".
+- [ ] Settings → Force delivery.
+- [ ] Home → open the delivery card. It shows the support card, not a quote or
+  activity. The card is calm, non-alarming, and says something like
+  "It sounds like things are hard right now."
+- [ ] The number **988** appears in the card and is tappable. Tapping it opens
+  the phone dialler with 988 pre-filled (or offers to call in a dialog).
+- [ ] The card does **not** show a book or movie recommendation.
+- [ ] The footer still reads "Picked on your phone from your week".
+- [ ] Clear the test journal entry afterwards.
