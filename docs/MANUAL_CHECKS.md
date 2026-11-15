@@ -4,6 +4,137 @@ Jest cannot see pixels, animation, the share sheet, or iOS settings. Run these
 in Expo Go on the iPhone and tick them off. Start the app with `npx expo start`
 and scan the QR code.
 
+## Houses run: houses, resting inside, chests, sports gear, hero suits (2026-11-14)
+
+Everything here was checked on the laptop only: drawings by looking at PNG
+renders (`docs/companion/houses/`, `docs/companion/items/`,
+`docs/companion/chests.png`), logic by tests. Open the newest published
+update in Expo Go. If the app does not open, note the exact error text, then
+on the laptop run
+`npx eas-cli update:republish --group 09e3c12f-d5b7-4fac-8d7b-371d8a024c89`
+to go back to the update before this run.
+
+Tip: you need treats to try things. Earn them, or open chests.
+
+### H1. Each house's preview in the Shop
+- [ ] Shop → Houses. All 15 cards show a different scene (sky, ground,
+  scenery, house) with your dog standing in front. No two look the same.
+- [ ] The cards are in order of tier, cheapest first.
+- [ ] Tap the picture on a card. A pop-up opens with the scene moving and
+  your dog animated, with **Buy** (or **Show in yard** if you own it).
+- [ ] Do this for all 15. Tick each one when its preview opens and nothing
+  is cut off or badly placed:
+  - [ ] Cozy Den  - [ ] Beach Shack  - [ ] Forest Cabin
+  - [ ] Treehouse  - [ ] Mountain Lodge  - [ ] Desert Oasis
+  - [ ] Cloud Castle  - [ ] Underwater Palace  - [ ] Sky Tower
+  - [ ] Space Station  - [ ] Dragon's Lair  - [ ] Time Fortress
+  - [ ] Realm of the Gods  - [ ] Cosmic Sanctuary  - [ ] Dimension X
+- [ ] Scrolling the Houses list is smooth.
+
+### H2. Show in yard
+- [ ] With no house owned, Home shows the same starter yard as before.
+- [ ] Buy a house. Home now shows that house and its backdrop.
+- [ ] Own two houses. Shop → Houses → **Show in yard** on the cheaper one.
+  Home shows the cheaper one. Close Expo Go fully and reopen: still that one.
+- [ ] The dog and the door are fully on screen. (On a small phone the very
+  top of the tallest houses may be cut off. Note which house if it looks bad.)
+
+### H3. The ambient animations
+- [ ] On Home, each house you own has something moving: smoke, waves and a
+  palm, leaves, a canopy, snow, shimmer, clouds, bubbles and kelp, a beacon,
+  stars, an ember glow, clock hands, light rays, a nebula, a portal.
+- [ ] The movement is slow and smooth, and nothing jumps once a minute.
+- [ ] After 10pm, daytime houses get a blue tint. Dark scenes (space, sea
+  floor, lair, sanctuary, Dimension X) look the same as in the day.
+- [ ] Settings → Accessibility → Motion → Reduce Motion on. Reopen Home:
+  nothing in the scene moves.
+
+### H4. The dog goes in and out
+- [ ] With a house shown, tap the house (or the Rest button by it). She hops
+  to the door, shrinks and fades through it, and appears inside, curled up
+  asleep, small, with "z"s floating up.
+- [ ] Tap again. She comes back out to her spot.
+- [ ] She is still wearing everything she had on, inside and outside.
+- [ ] Treehouse, Sky Tower, Space Station: she appears in the window (the
+  cabin, the lookout, the dome), not in the door.
+- [ ] Tap quickly several times while she is walking. She never gets stuck,
+  doubles, or disappears.
+- [ ] Reduce Motion on: no walk. She fades out outside and fades in inside.
+
+### H5. Auto-rest during a Sleep block
+- [ ] Schedule a task with the **Sleep** pillar that covers the time right
+  now. Within a minute she walks inside by herself.
+- [ ] Tap to bring her out. She stays out for the rest of that block.
+- [ ] Make another Sleep block that ends in two minutes. She goes in, and
+  comes out by herself within a minute of the end.
+- [ ] Send her in by hand when no Sleep block is on. She stays in until you
+  tap.
+
+### H6. Opening each chest tier
+- [ ] Shop → Chests. Three chests: Wooden 14, Silver 34, Gold 85 treats.
+- [ ] Buy a Wooden Chest. Your treats go down by 14 and the count of
+  unopened Wooden Chests goes up by 1.
+- [ ] Open it. The chest shakes, the lid pops, the reward floats up, and the
+  phone taps (a haptic). The reward is treats, sometimes with an item.
+- [ ] The same for a Silver Chest.
+- [ ] The same for a Gold Chest, which also gets a burst of sparkles.
+- [ ] After opening, the treats on the Shop header match what the reward
+  card said, and a won item is in your owned items.
+- [ ] Win an item you already own (or keep opening until it happens): the
+  card says it was a duplicate and pays half its price in treats.
+- [ ] Reduce Motion on: no shake or pop. The reward card shows directly.
+- [ ] Close the app in the middle of an opening animation and reopen. The
+  chest is gone and the reward is there (it is saved before the animation).
+- [ ] At the end of a week with enough adherence, Home offers a chest
+  instead of the old weekly treat box.
+
+### H7. The odds shown
+- [ ] Each chest card shows its item chance and a line per kind of item:
+  Wooden 25%, Silver 40%, Gold 60%.
+- [ ] Each card says an item is guaranteed after 4 chests without one, and
+  that a duplicate pays half its price.
+- [ ] Nowhere in the Shop is there a way to pay real money or watch an ad.
+
+### H8. Sports gear and hero suits on two or more breeds
+- [ ] Shop → Outfits. Four jerseys sit with the other Tier 2 outfits, each
+  with a 24 on it. Ten hero suits sit in Tiers 3 to 5.
+- [ ] Shop → Accessories. Two helmets, a basketball, a football, a baseball
+  bat, and a hockey stick sit in Tier 2.
+- [ ] Every card shows your dog wearing the item before you buy it.
+- [ ] Wear a jersey, a helmet, and a ball. All three show together on Home.
+- [ ] Wear a helmet on the **Corgi** and on the **German Shepherd** (press
+  and hold the dog to switch). The tall ears are tucked inside the helmet
+  and nothing pokes through. Take the helmet off: the ears are back.
+- [ ] Wear a helmet on the Maltese or Golden Retriever. The long ears hang
+  out below the helmet, and you can see her eyes, nose, and mouth.
+- [ ] The football helmet's bars do not cover her eyes on any breed.
+- [ ] Wear a hero suit with a cape (Tide Guardian, Aurora Knight, Solar
+  Sovereign, Titan of 24) on two breeds. The cape is behind her, and the
+  suit fills the body with no fur-colored gaps.
+- [ ] Wear a hero suit and the Celestial Wings together. Both show.
+- [ ] Take the suit off. Its cape goes with it.
+- [ ] Look at each suit. If any of them reminds you of a hero you already
+  know from a comic or film, write down which one. They are meant to be new.
+
+### H9. The max outfit animates smoothly
+- [ ] Home → gear → hold the word **Settings** → Gallery. Under "Wearing"
+  tap **Hero outfit** (Titan of 24, a football helmet, a baseball bat).
+- [ ] All four dogs move smoothly. With `npx expo start` the frame counter
+  should stay near 60.
+- [ ] On Titan of 24 the clock hand on the emblem goes round and a soft glow
+  pulses behind it. Try Gravity Warden (two rings orbit the chest), Aurora
+  Knight (lights drift on the cape), Frost Sentinel (frost glints), Solar
+  Sovereign (the sun collar glows), Quantum Drift (the sheen fades in and
+  out).
+- [ ] The moving pieces stay on the suit when she hops or curls up to sleep.
+- [ ] Turn on Reduce Motion (the switch in the Gallery). Every one of those
+  stops.
+- [ ] The hardest case: on Home, show a Tier 5 house (Realm of the Gods,
+  Cosmic Sanctuary, or Dimension X) and wear a Tier 5 suit, a helmet, and a
+  held item. Scroll, tap her, send her inside and out. It should stay smooth.
+- [ ] If anything stutters, write down which house, which suit, and which
+  phone.
+
 ## Wardrobe: items, renaming, breeds (2026-11-14)
 
 Everything here was checked on the laptop only: drawings by looking at PNG

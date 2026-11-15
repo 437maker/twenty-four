@@ -573,3 +573,101 @@ Each entry says what was decided, why, and how to reverse it.
 - **What:** the currency is shown as "🦴 treats" everywhere, as before. Code
   and the loot table use `bones` for the amount inside a chest.
 - **Why:** renaming the currency on every screen was not asked for.
+
+### D59. The spec counts 20 new items but lists 18; two were added
+- **What:** the Phase D tables define 8 sports items and 10 hero suits. The
+  text around them says "20 new wearables" and "all 50 wearables". To match
+  the count, two sports items were added: **Football** (`acc_football`, held,
+  44 treats) and **Hockey Stick** (`acc_hockey_stick`, held, 46 treats). Each
+  sport now has a jersey and two pieces of gear or one piece and a helmet.
+- **Why this way round:** the number 20 appears three times and the test
+  the spec asks for names 50. Leaving the shop at 48 would fail that test.
+- **To undo:** delete the two ids from `shopCatalog.ts`, `itemSlots.ts`, and
+  `sportsArt.ts`, and change 50 to 48 (and 21 to 19) in the two test files.
+  Nobody can own them yet, so no data needs migrating.
+
+### D60. A hero suit is one item that draws on several layers
+- **What:** `ItemArt` gained `extras`: more pieces of the same item for the
+  `back` layer (a cape), the `body` layer (chest details, in front of the
+  fabric), or the `face` layer (not used yet). `scene.ts` places them. A
+  suit still takes only the `outfit` slot, as the spec requires, so a
+  separate back item (wings, a cloak) can be worn with it and is drawn over
+  the cape of the suit.
+- **Why not make the cape a second item:** then buying a suit would have to
+  grant two items and fill two slots, and taking the suit off could leave a
+  cape behind.
+- **Body extras** can be clipped to the body (a sheen on the fabric) and can
+  say where on the chest they sit. That spot is also the point a spin turns
+  around (the orbiting rings, the clock hand).
+
+### D61. Helmets hide the ears they would collide with
+- **What:** an item marked `helmet` is a shell over the forehead with a guard
+  down each cheek. With one on, upright ears (German Shepherd, Corgi, Shiba)
+  are not drawn: they are inside the helmet. Long hanging ears (Maltese,
+  Golden Retriever) come out underneath. A breed can also set `helmetFit`:
+  the Shiba widens the shell by 6% for its cheek fluff; the Pug widens it by
+  5% and tucks its small folded ears, which otherwise stuck out of the sides
+  (found in render round 1).
+- **Why hide instead of redraw:** drawing ears through holes would need a
+  helmet per breed, which breaks "drawn once, placed by anchor".
+- **Also from round 1:** the football face mask sat across the eyes and
+  nose. Its bars moved down to sit under the nose and under the mouth.
+
+### D62. A fourth item effect: shimmer
+- **What:** `shimmer` changes opacity only (it fades between 10% and 100%
+  twice per six-second loop). The other three effects move or scale a layer.
+- **Why:** a sheen clipped to the body must not move or it would slide off
+  the fabric. Under Reduce Motion it rests at 55%.
+- **How much moves, by tier:** Tier 3 suits have at most one moving piece,
+  Tier 4 exactly one, Tier 5 two or three. A test checks this. Every piece
+  runs off the one effect clock the rig already had, so a suit with three
+  moving pieces still starts only one loop (also tested).
+
+### D63. The heroes are original, and the code says so where the art lives
+- **What:** the ten suits were designed from the one-line looks in the spec,
+  with no reference to any published character. Emblems are a resistor-style
+  zigzag between two solder points, a curling wave, a comet, a leaf on a
+  shield, a star gem, a dark core with two orbiting rings, a crystal, a sun
+  collar, two offset diamonds, and a four-color quartered day.
+- **Circuit Spark:** the spec says "zigzag-trace". It is drawn as a flat
+  circuit trace inside a six-sided plate, on purpose not as a lightning bolt.
+- **Guard rails:** `heroArt.ts` and `sportsArt.ts` open with a comment that
+  says no borrowed names, marks, or color schemes. A test fails if a league,
+  publisher, or well-known hero name appears in the new catalog text. The
+  test cannot judge a drawing; a person should still look at the sheets.
+- **Sports:** jerseys use the brand purple, the four pillar colors, and
+  gold, with the number 24 drawn as two strokes (no font, no logo).
+
+### D64. Tier 2 now starts at 42 treats
+- **What:** the spec prices the Basketball at 42. The cheapest Tier 2 item
+  before this run cost 45.
+- **Effect:** the price-band test uses 42 to 80 for Tier 2. Tiers still do
+  not overlap (Tier 1 ends at 32), and a test checks that.
+
+### D65. The Shop sorts each tab by tier
+- **What:** `getCatalogByCategory()` now returns items cheapest tier first.
+- **Why:** the new items were added to the end of the catalog file, so the
+  Tier 2 jerseys would have appeared after the Tier 5 outfits.
+
+### D66. Chests picked up the new items without a change
+- **What:** the loot table reads the catalog, so the 20 items can drop from
+  chests of the right tier. The expected values moved a little and are still
+  inside 70% to 90% (Wooden 74.7%, Silver 78.3%, Gold 77.6%). This is the
+  headroom D54 left.
+
+### D67. This phase started from uncommitted work
+- **What:** when Phase D began, five files had uncommitted changes from an
+  earlier session: the `extras` type, the helmet ear tuck, the `shimmer`
+  effect, and the `helmetFit` field, with no items using them. They were
+  read, kept, and finished rather than thrown away.
+
+### D68. Published without a device test
+- **What:** the end-of-run update is group
+  `3e1d507f-dbcb-4ef6-b8af-74552da73a81`, built from commit `9603ece`.
+- **Not checked:** anything on a real phone, including the frame counter
+  with a Tier 5 house and a Tier 5 suit. See H9 in `docs/MANUAL_CHECKS.md`.
+- **The first publish attempt failed** (`expo config` exited with a Windows
+  crash code before anything was uploaded). The same command worked on the
+  second try.
+- **If it is broken on the phone:** go back to the update before this run:
+  `npx eas-cli update:republish --group 09e3c12f-d5b7-4fac-8d7b-371d8a024c89`

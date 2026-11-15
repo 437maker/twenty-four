@@ -205,20 +205,22 @@ tests pick the new breed up by themselves.
 
 ## What she wears
 
-Every Outfit and Accessory in the Shop (30 items) can be worn. Each is drawn
-once, in `items/itemArt.ts`, and every breed wears the same drawing.
+Every Outfit and Accessory in the Shop (50 items) can be worn. Each is drawn
+once and every breed wears the same drawing. The first 30 are in
+`items/itemArt.ts`, the sports gear in `items/sportsArt.ts`, and the hero
+suits in `items/heroArt.ts`. Shared helpers are in `items/artKit.ts`.
 
 **Slots.** She can wear one item in each of seven slots. Putting an item on
 replaces whatever was in its slot. The table is `items/itemSlots.ts`.
 
 | Slot | Where it sits | Items |
 |---|---|---|
-| outfit | on the body, clipped to the body shape | sweater, raincoat, vest, suits, armor, robe, coats |
-| head | top of the head | party hat, flower crown, astral crown, cosmic halo |
+| outfit | on the body, clipped to the body shape | sweater, raincoat, vest, suits, armor, robe, coats, four jerseys, ten hero suits |
+| head | top of the head | party hat, flower crown, astral crown, cosmic halo, football helmet, hockey helmet |
 | face | over the eyes | sunglasses |
 | neck | under the chin | bow tie, collar, pendant, dragon charm, infinity gem |
 | back | behind the body | superhero cape, wizard cloak, mythic mantle, celestial wings |
-| held | in the right front paw | magic wand, elemental staff, omnipotent orb |
+| held | in the right front paw | magic wand, elemental staff, omnipotent orb, basketball, football, baseball bat, hockey stick |
 | aura | behind everything | legendary aura, arcane matrix |
 
 **Anchors.** Each breed says where seven points are on its drawing: `headTop`,
@@ -233,9 +235,32 @@ decides this for all three renderers (`scene.ts`, `buildScene()`).
 **Effects.** The aura pulses, the halo and orb bob, the rune circle turns.
 These stop under Reduce Motion.
 
-**Review sheets:** `docs/companion/items/items-1.png` to `items-3.png` (every
-item, idle and happy), `max-outfit.png` (one item in every slot, all four
-states), and `max-outfit-64.png` (the same at the smallest size).
+**Hero suits.** A suit is one item in the `outfit` slot, but it can draw on
+more than one layer. Its `extras` list holds the other pieces: a cape on the
+`back` layer, and details on the `body` layer in front of the fabric (a
+pulsing emblem, two orbiting rings, a turning clock hand, a sheen clipped to
+the body). Take the suit off and they go with it. A separate back item can
+still be worn and is drawn over the cape of the suit. Suits use a fourth
+effect, `shimmer`, which only fades. Tier 3 suits have at most one moving
+piece, Tier 4 one, Tier 5 two or three; all of them stop under Reduce Motion.
+The ten heroes are original to this app. Do not model one on an existing
+character (D63).
+
+**Helmets.** A helmet is a shell over the forehead with a guard down each
+cheek. Upright ears (German Shepherd, Corgi, Shiba) are tucked inside it and
+not drawn. Long ears (Maltese, Golden Retriever) hang out underneath. A breed
+can set `helmetFit` to widen the shell or tuck its ears (Shiba, Pug).
+
+**Sports gear** uses the app's own colors and the number 24 only. No league
+or team names, marks, or color schemes.
+
+**Review sheets:** `docs/companion/items/items-1.png` to `items-5.png` (every
+item on the Maltese, idle and happy), `max-outfit.png` (one item in every
+slot, all four states), `max-outfit-64.png` (the same at the smallest size),
+`new-<breed>.png` (the 20 sports and hero items on each of the six breeds),
+`helmets.png` (both helmets, every breed, every state), `hero-outfit.png`
+(a hero suit, a helmet, and a held item on every breed), and
+`hero-outfit-64.png` (the same at the smallest size).
 
 Follow-ups, not done in this run:
 - Recoloring the Maltese's bow from a shop item.
@@ -339,7 +364,7 @@ To change how long the walk takes: `WALK_MS` and `DOOR_FADE_MS` in
 ## How to change her
 
 - **A color:** `palette.ts`, then `npm run render:companion` and look.
-- **A shape:** the path in `breeds/<breed>.ts` (the dog) or `items/itemArt.ts` (what she wears). Paths use absolute `M L C Q Z` commands
+- **A shape:** the path in `breeds/<breed>.ts` (the dog) or `items/itemArt.ts`, `items/sportsArt.ts`, `items/heroArt.ts` (what she wears). Paths use absolute `M L C Q Z` commands
   in the 200 × 200 box. The right ear, eye, and paw are mirrored from the left
   automatically.
 - **A pose:** the numbers in `POSES` in `poses.ts`.
