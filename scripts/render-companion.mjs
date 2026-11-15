@@ -9,6 +9,10 @@
 //   sheet-240.png, sheet-64.png       the Maltese: every state on every background
 //   items/items-1..3.png              every wearable item on the Maltese, idle and happy
 //   items/max-outfit.png              one item in every slot, all four states
+//   items/new-<breed>.png             the 20 sports and hero items on each breed, idle and happy
+//   items/helmets.png                 both helmets on every breed, all four states
+//   items/hero-outfit.png             a hero suit, a helmet and a held item on every breed
+//   items/hero-outfit-64.png          the same at the smallest size
 //   breeds/<breed>/sheet-240.png      each breed: every state on every background
 //   breeds/<breed>/sheet-64.png       the same at the smallest size
 //   breeds/<breed>/max-outfit.png     each breed fully dressed, all four states
@@ -21,6 +25,7 @@
 // Run:   npm run render:companion
 //        node scripts/render-companion.mjs some/dir            (write elsewhere)
 //        node scripts/render-companion.mjs some/dir items      (only the item sheets)
+//        node scripts/render-companion.mjs some/dir new        (only the sports and hero sheets)
 //        node scripts/render-companion.mjs some/dir corgi      (only one breed)
 //        node scripts/render-companion.mjs some/dir houses     (only the house sheets)
 //
@@ -53,7 +58,9 @@ const { companionSvgMarkup, companionInnerMarkup } = await fromApp('svgMarkup.ts
 const { BACKDROPS } = await fromApp('palette.ts');
 const { outlineScaleForSize } = await fromApp('poses.ts');
 const { BREEDS } = await fromApp('breeds/index.ts');
-const { ITEM_SLOTS, MAX_OUTFIT } = await fromApp('items/itemSlots.ts');
+const { ITEM_SLOTS, MAX_OUTFIT, HERO_OUTFIT } = await fromApp('items/itemSlots.ts');
+const { SPORTS_ART } = await fromApp('items/sportsArt.ts');
+const { HERO_ART } = await fromApp('items/heroArt.ts');
 const { HOUSES } = await fromApp('houses/index.ts');
 const { houseInnerMarkup, houseSvgMarkup } = await fromApp('houses/houseMarkup.ts');
 const { shapesMarkup } = await fromApp('svgMarkup.ts');
@@ -157,6 +164,55 @@ if (only === 'all' || only === 'items') {
   });
   const t = grid(4, 1, tiny, 64);
   save('items/max-outfit-64.png', t.svg, t.width);
+}
+
+// ── The sports and hero items on every breed ──
+if (only === 'all' || only === 'items' || only === 'new') {
+  const ids = [...Object.keys(SPORTS_ART), ...Object.keys(HERO_ART)];
+  for (const breed of BREEDS) {
+    // 20 items, idle and happy = 40 cells = 8 columns x 5 rows
+    let inner = '';
+    ids.forEach((id, i) => {
+      const equipped = { [ITEM_SLOTS[id]]: id };
+      const row = Math.floor(i / 4);
+      const col = (i % 4) * 2;
+      inner += cell(col, row, 'day', { state: 'idle', breed: breed.id, equipped });
+      inner += cell(col + 1, row, 'day', { state: 'happy', breed: breed.id, equipped });
+    });
+    const g = grid(8, 5, inner, 170);
+    save(`items/new-${breed.id}.png`, g.svg, g.width);
+  }
+  // Helmets are the hard fit: both of them, every breed, every state.
+  let helmets = '';
+  BREEDS.forEach((breed, r) => {
+    ['acc_football_helmet', 'acc_hockey_helmet'].forEach((id, h) => {
+      STATES.forEach((state, c) => {
+        helmets += cell(h * 4 + c, r, 'day', { state, breed: breed.id, equipped: { head: id } });
+      });
+    });
+  });
+  const hg = grid(8, BREEDS.length, helmets, 170);
+  save('items/helmets.png', hg.svg, hg.width);
+  // The "max outfit" of this run: a hero suit, a helmet and a held item.
+  const LOOKS = [
+    HERO_OUTFIT,
+    { outfit: 'outfit_hero_aurora_knight', head: 'acc_hockey_helmet', held: 'acc_basketball' },
+  ];
+  let hero = '';
+  let heroTiny = '';
+  BREEDS.forEach((breed, r) => {
+    LOOKS.forEach((equipped, l) => {
+      STATES.forEach((state, c) => {
+        const back = l ? 'night' : 'day';
+        hero += cell(l * 4 + c, r, back, { state, breed: breed.id, equipped });
+        heroTiny += cell(l * 4 + c, r, back, { state, breed: breed.id, equipped, outlineScale: outlineScaleForSize(64) });
+      });
+    });
+  });
+  const ho = grid(8, BREEDS.length, hero, 170);
+  save('items/hero-outfit.png', ho.svg, ho.width);
+  const ht = grid(8, BREEDS.length, heroTiny, 64);
+  save('items/hero-outfit-64.png', ht.svg, ht.width);
 }
 
 // ── Every breed ──
