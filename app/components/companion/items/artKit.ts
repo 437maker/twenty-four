@@ -82,3 +82,89 @@ export const BRAND_D = '#2A2466';
 export const PERSONAL = '#1D9E75';
 export const CARE = '#D97706';
 export const SLEEP = '#185FA5';
+
+// ─── Hero helpers ─────────────────────────────────────────────────────────────
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+// A star-burst polygon: `n` points reaching `outer`, with valleys at `inner`
+// (sun rays, a badge edge). `turn` rotates it, in degrees.
+export function burst(cx: number, cy: number, inner: number, outer: number, n: number, turn = 0): string {
+  const pts: string[] = [];
+  for (let i = 0; i < n * 2; i++) {
+    const a = ((i * 180) / n + turn - 90) * (Math.PI / 180);
+    const r = i % 2 === 0 ? outer : inner;
+    pts.push(`${r2(cx + Math.cos(a) * r)} ${r2(cy + Math.sin(a) * r)}`);
+  }
+  return `M ${pts.join(' L ')} Z`;
+}
+
+// A round hole for a mask. It is wound the opposite way to the mask's own
+// outline, so the fill leaves it open and the eye shows through.
+function hole(cx: number, cy: number, r: number): string {
+  const k = r2(r * 0.5523);
+  return (
+    `M ${cx - r} ${cy} C ${cx - r} ${cy + k} ${cx - k} ${cy + r} ${cx} ${cy + r} ` +
+    `C ${cx + k} ${cy + r} ${cx + r} ${cy + k} ${cx + r} ${cy} ` +
+    `C ${cx + r} ${cy - k} ${cx + k} ${cy - r} ${cx} ${cy - r} ` +
+    `C ${cx - k} ${cy - r} ${cx - r} ${cy - k} ${cx - r} ${cy} Z`
+  );
+}
+// The eyes sit 20 units either side of the face anchor. The holes are wider
+// than the biggest eye (the Pug's), so the eyes always show whole.
+export const EYE_HOLES = `${hole(-20, 0, 10.5)} ${hole(20, 0, 10.5)}`;
+
+// Mask outlines, drawn around the point between the eyes. Each runs
+// clockwise (left, over the top, right, back along the bottom).
+export const MASKS = {
+  // The plain domino
+  round:
+    'M -37 -1 C -37 -11 -30 -15 -20 -15 C -11 -15 -6 -11 0 -11 C 6 -11 11 -15 20 -15 C 30 -15 37 -11 37 -1 ' +
+    'C 37 8 30 13 21 13 C 12 13 7 7 0 5 C -7 7 -12 13 -21 13 C -30 13 -37 8 -37 -1 Z',
+  // Outer corners swept up into points
+  wing:
+    'M -35 4 L -45 -18 C -35 -13 -27 -15 -20 -15 C -11 -15 -6 -11 0 -11 C 6 -11 11 -15 20 -15 C 27 -15 35 -13 45 -18 L 35 4 ' +
+    'C 32 10 27 13 21 13 C 12 13 7 7 0 5 C -7 7 -12 13 -21 13 C -27 13 -32 10 -35 4 Z',
+  // A jagged top edge, like broken ice
+  shard:
+    'M -37 0 L -44 -12 L -34 -11 L -32 -22 L -22 -14.5 L -12 -20 L -6 -11.5 L 0 -13 L 6 -11.5 L 12 -20 L 22 -14.5 L 32 -22 L 34 -11 L 44 -12 L 37 0 ' +
+    'C 36 8 30 13 21 13 C 12 13 7 7 0 5 C -7 7 -12 13 -21 13 C -30 13 -36 8 -37 0 Z',
+  // Two leaves, tips pointing out
+  leaf:
+    'M -47 -9 C -37 -19 -25 -17 -17 -15 C -10 -13 -5 -10.5 0 -10.5 C 5 -10.5 10 -13 17 -15 C 25 -17 37 -19 47 -9 ' +
+    'C 41 6 31 13 21 13 C 12 13 6 7 0 5 C -6 7 -12 13 -21 13 C -31 13 -41 6 -47 -9 Z',
+  // Straight edges and corners
+  angular:
+    'M -39 -6 L -32 -15.5 L -8 -15.5 L -2.5 -9 L 2.5 -9 L 8 -15.5 L 32 -15.5 L 39 -6 L 34 9 L 25 13.5 L 12.5 13.5 L 4 5 L -4 5 L -12.5 13.5 L -25 13.5 L -34 9 Z',
+} as const;
+
+// A mask with open eye holes: one filled path, edged all round.
+export function heroMask(fill: string, stroke: string, outline: keyof typeof MASKS = 'round', sw = 1.8): Shape {
+  return path(`${MASKS[outline]} ${EYE_HOLES}`, { fill, stroke, sw });
+}
+
+// A hero cape seen from the front. Only the part outside the body shows, so
+// the shape that matters is the two wings and the hem. It is drawn as two
+// mirrored halves (their seam is hidden behind the body), with a lining
+// stripe along the outer edge and one fold line.
+export type CapeHem = 'wave' | 'points' | 'flame' | 'steps';
+export function heroCape(
+  fill: string, lining: string, stroke: string,
+  o: { spread?: number; drop?: number; hem?: CapeHem } = {},
+): Shape[] {
+  const s = o.spread ?? 80;
+  const b = o.drop ?? 50;
+  const x0 = -s - 3;
+  const hems: Record<CapeHem, string> = {
+    wave: `Q ${x0 + 2} ${b + 5} ${x0 + 11} ${b + 1} Q ${x0 + 17} ${b - 6} ${x0 + 24} ${b} Q ${x0 + 30} ${b + 5} ${x0 + 37} ${b - 2}`,
+    points: `L ${x0 + 5} ${b + 6} L ${x0 + 11} ${b - 5} L ${x0 + 18} ${b + 7} L ${x0 + 25} ${b - 5} L ${x0 + 32} ${b + 5} L ${x0 + 38} ${b - 4}`,
+    flame:
+      `Q ${x0 - 3} ${b - 2} ${x0 + 4} ${b + 7} Q ${x0 + 8} ${b - 4} ${x0 + 13} ${b - 6} Q ${x0 + 14} ${b + 2} ${x0 + 21} ${b + 6} ` +
+      `Q ${x0 + 24} ${b - 3} ${x0 + 29} ${b - 6} Q ${x0 + 31} ${b} ${x0 + 37} ${b + 3}`,
+    steps: `L ${x0} ${b + 3} L ${x0 + 9} ${b + 3} L ${x0 + 9} ${b - 4} L ${x0 + 18} ${b - 4} L ${x0 + 18} ${b + 4} L ${x0 + 27} ${b + 4} L ${x0 + 27} ${b - 3}`,
+  };
+  return pair([
+    path(`M 0 -24 L -30 -24 C -62 -26 ${-s} -2 ${x0} ${b - 12} ${hems[o.hem ?? 'wave']} L -36 ${b - 3} L 0 ${b - 3} Z`, { fill, stroke, sw: 2.5 }),
+    line(`M -37 -19 C -60 -18 ${-s + 6} 0 ${x0 + 6} ${b - 14}`, lining, 4.5),
+    line(`M ${-s + 19} 6 L ${-s + 17} ${b - 10}`, stroke, 2),
+  ]);
+}

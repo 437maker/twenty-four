@@ -730,3 +730,79 @@ Each entry says what was decided, why, and how to reverse it.
   revert the `HomeScreen.tsx` import and the `<YardDog>` JSX to the previous
   `shownHouse ? <YardDog …> : <NovaSprite …>` ternary, and delete
   `__tests__/starterHouse.test.tsx`.
+
+## Delivery fix and art polish run (2026-11-15)
+
+### D71. An opened delivery stays on Home until it is dismissed
+- **Bug:** on iPhone a delivery (forced from the tester menu) never showed its
+  recommendation. Tapping the box called `openDelivery`, the store then
+  re-read only unopened rows, and the card was removed from Home in the same
+  moment it was opened. The +3 bones arrived; the card did not.
+- **Fix:** `openDeliveryAndGiveBones` now updates the row in the store
+  (`opened: true`) and leaves it on Home. It goes when the user dismisses it,
+  or the next time the app starts. It is always in the Analytics history.
+  `_shownDeliveries` keeps open cards in front of the (up to 2) unopened ones,
+  so coming back to Home does not drop a card that is being read.
+- **Also:** every card is built by `resolveDeliveryCard` in `utils/delivery.ts`
+  (title, meta line, pitch, "why you got this"). It looks the content up by id
+  alone, and an id that is no longer in the library falls back to a quote, so
+  a card cannot be blank. 👍, 👎 and Save now work on an open card (before,
+  the tag weights were never updated because the row had already left the
+  store). The 988 line on the support card is now tappable (`tel:988`).
+- **Tester "Force delivery"** adds a delivery on every press, even when today
+  already has one, and ignores the threshold below. If the whole library was
+  delivered in the last 8 weeks the picker relaxes its no-repeat rule instead
+  of delivering nothing.
+- **Reverse:** revert `useAppStore.ts` and `DeliveryCard.tsx` to `ebb19f0`.
+
+### D72. Deliveries start only when there is enough data
+- **What:** scheduled deliveries begin once all three are true: at least 7
+  days since `app_start_date`, 10 or more completed tasks, and 3 or more
+  journal entries with text. Until then Home shows "First treat delivery
+  unlocks soon" with the three counts (`DeliveryUnlockHint`).
+- **Why:** the picker reads the last week of tasks and journal entries. With
+  almost nothing to read, the "why you got this" line was a guess.
+- **Where:** `DELIVERY_THRESHOLD` and `deliveryProgress()` in
+  `utils/delivery.ts`; `getDeliveryStats()` in `db/queries.ts`;
+  `checkDeliveriesOnOpen` in the store. No new column and no migration:
+  `app_start_date` already exists. Home re-checks on every focus, so the hint
+  moves as tasks are completed.
+- **Economy:** unchanged. A delivery is still +3 bones, and none are paid
+  before the threshold, so a new user earns slightly fewer bones in week 1.
+- **Reverse:** set every value in `DELIVERY_THRESHOLD` to 0.
+
+### D73. Delivery opening animation
+- **What:** the box wiggles, the lid flaps open on its hinge, 6 bones and 14
+  pieces of confetti burst out and fall, and the card slides up with a
+  haptic thump (a light tap at the lid, a medium one at the card). 1.35 s,
+  one shared value. The row is opened in the database before anything moves.
+- **Reduce Motion:** none of it runs; the card is shown directly.
+- **Note:** the box is drawn with plain views (no new library, Expo Go safe).
+  The spec asked for "the existing chest-open animation, smaller"; this is
+  the same timing pattern as `ChestOpenModal`, inline in the card.
+
+### D74. Stadiums and hero sets redrawn
+- **Stadiums:** all four were flat slabs running off the right edge of the
+  scene, with pieces overlapping the door. Each is now a centred building
+  with stands, a "24" scoreboard and its pitch. The crowd is two layers that
+  bob out of step (a wave) instead of dots scrolling out of the stand.
+  Geometry is unchanged: same dog spot, door and rest spot.
+- **Hero suits:** bolder color blocks, larger chest emblems on their own
+  plates, shoulder pieces, and a cape on nine of the ten (Circuit Spark,
+  Ember Comet, Verdant Shield, Gravity Warden and Frost Sentinel gained one).
+  Five suits gained a mask with open eye holes: Tide Guardian, Verdant
+  Shield, Gravity Warden, Frost Sentinel and Titan of 24. The three suits
+  whose matching accessory is worn on the face (visor, goggles, Phase Mask)
+  have no mask of their own, so the two never stack.
+- **Accessories:** all ten redrawn. The visor and goggles are tinted glass
+  and the Phase Mask has eye holes, so no face piece hides the eyes. The
+  Orbit Gauntlet is now a gauntlet (it was a staff). The Sun Medallion hangs
+  on the suit's sunburst, so the full set reads as one sun.
+- **Originality:** still the app's own heroes. No lightning bolt, bat, spider,
+  star-and-stripes, S-shield or similar emblem; no published hero's color and
+  symbol pairing. The test that bans league and hero names still passes.
+- **Motion rules kept:** Tier 3 at most one moving piece, Tier 4 one, Tier 5
+  two or more. Masks and capes are still.
+- **Reverse:** `git checkout ebb19f0 -- app/components/companion/houses/stadiums.ts
+  app/components/companion/items/heroArt.ts
+  app/components/companion/items/heroAccessoryArt.ts`.

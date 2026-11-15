@@ -237,14 +237,23 @@ These stop under Reduce Motion.
 
 **Hero suits.** A suit is one item in the `outfit` slot, but it can draw on
 more than one layer. Its `extras` list holds the other pieces: a cape on the
-`back` layer, and details on the `body` layer in front of the fabric (a
-pulsing emblem, two orbiting rings, a turning clock hand, a sheen clipped to
-the body). Take the suit off and they go with it. A separate back item can
+`back` layer, a mask on the `face` layer, and details on the `body` layer in
+front of the fabric (a pulsing emblem, two orbiting moons, a turning clock
+hand, a sheen clipped to the body). Take the suit off and they go with it. A separate back item can
 still be worn and is drawn over the cape of the suit. Suits use a fourth
 effect, `shimmer`, which only fades. Tier 3 suits have at most one moving
 piece, Tier 4 one, Tier 5 two or three; all of them stop under Reduce Motion.
 The ten heroes are original to this app. Do not model one on an existing
 character (D63).
+
+What makes a suit read as a hero (D74): two or three strong blocks of color;
+a chest emblem as large as the chest allows, on its own plate; shoulder
+pieces; and a cape with its own hem (`heroCape()` in `artKit.ts`: wave,
+points, flame, or steps). A mask is one filled path with two eye holes wound
+the opposite way (`heroMask()`), so the eyes always show; the holes are wider
+than the Pug's eyes, the biggest. A suit has its own mask only if its
+matching accessory is not worn on the face. Face accessories follow the same
+rule: tinted glass or open holes, never a solid band over the eyes.
 
 **Helmets.** A helmet is a shell over the forehead with a guard down each
 cheek. Upright ears (German Shepherd, Corgi, Shiba) are tucked inside it and
@@ -259,8 +268,14 @@ item on the Maltese, idle and happy), `max-outfit.png` (one item in every
 slot, all four states), `max-outfit-64.png` (the same at the smallest size),
 `new-<breed>.png` (the 20 sports and hero items on each of the six breeds),
 `helmets.png` (both helmets, every breed, every state), `hero-outfit.png`
-(a hero suit, a helmet, and a held item on every breed), and
-`hero-outfit-64.png` (the same at the smallest size).
+(a hero suit, a helmet, and a held item on every breed),
+`hero-outfit-64.png` (the same at the smallest size),
+`hero-sets-<breed>.png` (each of the ten hero suits with its matching
+accessory, idle and happy, on each of the six breeds), and
+`hero-sets-64.png` (every full set on every breed at the smallest size).
+The stadiums are on `docs/companion/houses/stadiums.png` (Maltese and German
+Shepherd, outside in the matching kit and resting inside) and
+`stadiums-small.png` (the Shop card size).
 
 Follow-ups, not done in this run:
 - Recoloring the Maltese's bow from a shop item.

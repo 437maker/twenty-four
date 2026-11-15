@@ -500,3 +500,61 @@ To test this you need to enter crisis language in a journal entry.
 - [ ] The card does **not** show a book or movie recommendation.
 - [ ] The footer still reads "Picked on your phone from your week".
 - [ ] Clear the test journal entry afterwards.
+
+## Delivery fix and art polish run (2026-11-15)
+
+Replaces checks D3 above where they differ.
+
+### E1. A forced delivery shows a real recommendation
+
+- [ ] Settings → tester section → **Force delivery**. The alert says a treat
+  delivery is waiting on Home.
+- [ ] Home: a card with a cardboard box and "Tap to open your delivery".
+- [ ] Tap the box. It wiggles, the lid flaps open, bones and confetti burst
+  out, then the card slides up and the phone gives a thump.
+- [ ] The card shows a type (Quote, Book, Watch, or Try this), a "why you got
+  this" line in italics, a title, a second line (author, year, minutes, or
+  who said it) and a one-line pitch. None of them is blank.
+- [ ] The card **stays on Home**. Switch to another tab and back: still there.
+- [ ] +3 bones were added once.
+- [ ] 👍 highlights. Save turns purple and reads "✓ Saved".
+- [ ] Tap ✕. The card leaves Home. Analytics → Treat deliveries lists it with
+  its title, 👍 and a star.
+- [ ] Force delivery twice more. Two boxes are on Home.
+
+### E2. Reduce Motion
+
+- [ ] iPhone Settings → Accessibility → Motion → Reduce Motion on.
+- [ ] Force a delivery and tap the box. The card appears at once: no wiggle,
+  no confetti.
+
+### E3. The threshold hint
+
+Needs a fresh install (or Settings → reset all data).
+
+- [ ] Home shows "📦 First treat delivery unlocks soon" with three small bars:
+  Days 0/7, Tasks 0/10, Journals 0/3. No delivery box.
+- [ ] Complete a task, go back to Home: Tasks reads 1/10.
+- [ ] Write a journal entry: Journals reads 1/3.
+- [ ] Force delivery still works while the hint would be showing.
+
+### E4. Support card
+
+- [ ] Journal an entry containing "I want to die", then Force delivery.
+- [ ] Home shows the support card (no box, no bones). Tapping the 988 panel
+  offers to call 988.
+
+### E5. Stadiums, redrawn
+
+- [ ] Shop → Houses → each of the four stadiums: the card shows a whole
+  building with a "24" scoreboard, not a slab cut off at the edge.
+- [ ] Use each one. In the yard: the crowd bobs, the lights or jumbotron glow,
+  a ball or puck moves now and then. The yard stays smooth.
+- [ ] Tap the stadium: the dog walks to the tunnel and is seen asleep in it.
+
+### E6. Hero full sets, redrawn
+
+- [ ] Shop → try on each hero suit with its accessory. "Full set!" appears.
+- [ ] Capes show behind the body on both sides. Masks leave both eyes visible.
+- [ ] Switch breed (press and hold the dog) and repeat for one suit with a
+  mask and the Aurora Knight with its helm. Nothing floats or clips.

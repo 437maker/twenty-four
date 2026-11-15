@@ -20,6 +20,10 @@
 //   houses/houses-inside.png          the same, with her resting inside
 //   houses/houses-small.png           the Shop card size
 //   houses/<house id>.png             one large picture per house
+//   houses/stadiums.png               the 4 stadiums: Maltese and German Shepherd, outside (in the matching kit) and resting inside
+//   houses/stadiums-small.png         the same scenes at the Shop card size
+//   items/hero-sets-<breed>.png       each hero suit with its matching accessory (the full set), idle and happy
+//   items/hero-sets-64.png            every full set on every breed at the smallest size
 //   chests.png                        the three chests, closed and open
 //
 // Run:   npm run render:companion
@@ -28,6 +32,8 @@
 //        node scripts/render-companion.mjs some/dir new        (only the sports and hero sheets)
 //        node scripts/render-companion.mjs some/dir corgi      (only one breed)
 //        node scripts/render-companion.mjs some/dir houses     (only the house sheets)
+//        node scripts/render-companion.mjs some/dir stadiums   (only the stadium sheet)
+//        node scripts/render-companion.mjs some/dir herosets   (only the hero full-set sheets)
 //
 // Needs Node 22.15+ (it imports the app's TypeScript files directly; Node
 // strips the types). The only package it uses is @resvg/resvg-js, a
@@ -58,7 +64,7 @@ const { companionSvgMarkup, companionInnerMarkup } = await fromApp('svgMarkup.ts
 const { BACKDROPS } = await fromApp('palette.ts');
 const { outlineScaleForSize } = await fromApp('poses.ts');
 const { BREEDS } = await fromApp('breeds/index.ts');
-const { ITEM_SLOTS, MAX_OUTFIT, HERO_OUTFIT } = await fromApp('items/itemSlots.ts');
+const { ITEM_SLOTS, MAX_OUTFIT, HERO_OUTFIT, HERO_SUIT_PAIRS } = await fromApp('items/itemSlots.ts');
 const { SPORTS_ART } = await fromApp('items/sportsArt.ts');
 const { HERO_ART } = await fromApp('items/heroArt.ts');
 const { HOUSES } = await fromApp('houses/index.ts');
@@ -266,6 +272,68 @@ if (only === 'all' || only === 'houses') {
   for (const house of HOUSES) {
     save(`houses/${house.id}.png`, houseSvgMarkup(house, 600, { dog: { breed: 'maltese', state: 'idle' }, idPrefix: house.id }), 600);
   }
+}
+
+// ── The four stadiums, two breeds: outside in the matching kit, and resting inside ──
+if (only === 'all' || only === 'houses' || only === 'stadiums') {
+  const W = 300;
+  const H = 200;
+  const KITS = {
+    house_football_stadium: { outfit: 'outfit_football_jersey', head: 'acc_football_helmet', held: 'acc_football' },
+    house_baseball_park: { outfit: 'outfit_baseball_jersey', head: 'acc_baseball_cap', held: 'acc_baseball_bat' },
+    house_basketball_arena: { outfit: 'outfit_basketball_jersey', held: 'acc_basketball' },
+    house_hockey_rink: { outfit: 'outfit_hockey_jersey', head: 'acc_hockey_helmet', held: 'acc_hockey_stick' },
+  };
+  const stadiums = HOUSES.filter((h) => h.id in KITS);
+  const known = (kit) => Object.fromEntries(Object.entries(kit).filter(([slot, id]) => ITEM_SLOTS[id] === slot));
+  const ROWS = [
+    (h) => ({ breed: 'maltese', state: 'idle' }),
+    (h) => ({ breed: 'maltese', state: 'happy', equipped: known(KITS[h.id]) }),
+    (h) => ({ breed: 'german_shepherd', state: 'idle', equipped: known(KITS[h.id]) }),
+    (h) => ({ breed: 'maltese', inside: true }),
+    (h) => ({ breed: 'german_shepherd', inside: true }),
+  ];
+  let inner = '';
+  ROWS.forEach((dogFor, r) => {
+    stadiums.forEach((house, c) => {
+      inner +=
+        `<svg x="${c * W}" y="${r * H}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
+        houseInnerMarkup(house, { dog: dogFor(house), idPrefix: `st${cellId++}` }) +
+        `</svg>`;
+    });
+  });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${stadiums.length * W}" height="${ROWS.length * H}" viewBox="0 0 ${stadiums.length * W} ${ROWS.length * H}">${inner}</svg>`;
+  save('houses/stadiums.png', svg, stadiums.length * 450);
+  save('houses/stadiums-small.png', svg, stadiums.length * 140);
+  for (const house of stadiums) {
+    save(`houses/${house.id}.png`, houseSvgMarkup(house, 600, { dog: { breed: 'maltese', state: 'idle' }, idPrefix: house.id }), 600);
+  }
+}
+
+// ── The ten hero full sets (suit + its matching accessory) on every breed ──
+if (only === 'all' || only === 'items' || only === 'herosets') {
+  const sets = Object.entries(HERO_SUIT_PAIRS).map(([acc, suit]) => ({ outfit: suit, [ITEM_SLOTS[acc]]: acc }));
+  for (const breed of BREEDS) {
+    // 10 sets, idle and happy = 20 cells = 4 columns x 5 rows
+    let inner = '';
+    sets.forEach((equipped, i) => {
+      const row = Math.floor(i / 2);
+      const col = (i % 2) * 2;
+      inner += cell(col, row, i % 4 < 2 ? 'day' : 'warmWhite', { state: 'idle', breed: breed.id, equipped });
+      inner += cell(col + 1, row, i % 4 < 2 ? 'day' : 'warmWhite', { state: 'happy', breed: breed.id, equipped });
+    });
+    const g = grid(4, 5, inner, 260);
+    save(`items/hero-sets-${breed.id}.png`, g.svg, g.width);
+  }
+  // The smallest size: every set (columns) on every breed (rows), idle.
+  let tiny = '';
+  BREEDS.forEach((breed, r) => {
+    sets.forEach((equipped, c) => {
+      tiny += cell(c, r, 'day', { state: 'idle', breed: breed.id, equipped, outlineScale: outlineScaleForSize(64) });
+    });
+  });
+  const t = grid(sets.length, BREEDS.length, tiny, 64);
+  save('items/hero-sets-64.png', t.svg, t.width);
 }
 
 // ── The chests: closed (top row) and with the lid popped (bottom row) ──
