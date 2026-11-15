@@ -133,6 +133,8 @@ function FxLayer({ dr, fx, k, children }: { dr: Drawable; fx: SharedValue<number
     const wave = Math.sin(v * Math.PI * 4); // two gentle waves per loop
     if (kind === 'pulse') return { opacity: 0.86 + 0.14 * wave, transform: [{ translateY: 0 }, { rotate: '0deg' }, { scale: 1 + 0.04 * wave }] };
     if (kind === 'bob') return { opacity: 1, transform: [{ translateY: wave * 2.2 * k }, { rotate: '0deg' }, { scale: 1 }] };
+    // A sheen: only the opacity changes, so a clipped layer stays put.
+    if (kind === 'shimmer') return { opacity: 0.55 + 0.45 * wave, transform: [{ translateY: 0 }, { rotate: '0deg' }, { scale: 1 }] };
     return { opacity: 1, transform: [{ translateY: 0 }, { rotate: `${v * 360}deg` }, { scale: 1 }] };
   });
   const origin = dr.at ? [dr.at.x * k, dr.at.y * k, 0] : [100 * k, 100 * k, 0];
@@ -272,7 +274,7 @@ export default function Companion({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const scene = useMemo(() => buildScene(def, state, equipped), [key]);
   const hasFx = useMemo(
-    () => [scene.aura, scene.back, scene.face, scene.headItem, scene.held].some((l) => l.some((d) => !!d.fx)),
+    () => [scene.aura, scene.back, scene.body, scene.face, scene.headItem, scene.held].some((l) => l.some((d) => !!d.fx)),
     [scene],
   );
   const rig = useCompanionRig({ state, reduceMotion, paused: !focused, hatOn: scene.celebrationHat, hasFx });

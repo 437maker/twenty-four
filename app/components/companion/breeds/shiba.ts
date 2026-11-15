@@ -100,4 +100,5 @@ export const SHIBA: BreedDef = {
     frontPaw: anchor(116, 184),
     aura: anchor(100, 108),
   }),
+  helmetFit: { scale: 1.06 },   // the cheek fluff makes this the widest head
 };

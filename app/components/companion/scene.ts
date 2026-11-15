@@ -19,6 +19,7 @@
 import type { NovaState } from '../../types';
 import type { BreedDef } from './breeds/types';
 import { itemArt } from './items/itemArt';
+import type { ItemExtra } from './items/itemArt';
 import type { Equipped } from './items/itemSlots';
 import { path, placeShapes } from './shapes';
 import type { Anchor, Drawable, ItemFx, Shape } from './shapes';
@@ -79,6 +80,31 @@ export function buildScene(breed: BreedDef, state: NovaState, equipped: Equipped
   const auraItem = equipped.aura ? itemArt(equipped.aura) : null;
   const partyHat = itemArt(PARTY_HAT_ID)!;
 
+  // An outfit can bring extra pieces for other layers (a cape, goggles,
+  // animated chest details). They are part of the outfit: taking it off
+  // takes them off.
+  const extras = (layer: ItemExtra['layer']): ItemExtra[] => (outfit?.extras ?? []).filter((e) => e.layer === layer);
+  const extra = (e: ItemExtra, i: number, at: Anchor): Drawable => {
+    // A body extra can sit off-centre (an emblem's orbit): move the anchor
+    // there, so an effect turns around that point.
+    const spot: Anchor = e.at ? { ...at, x: at.x + e.at.x * at.scale, y: at.y + e.at.y * at.scale } : at;
+    return worn(`outfit-${equipped.outfit}-${e.layer}-${i}`, e.shapes, spot, {
+      fx: e.fx,
+      clip: e.clip ? P.bodyPath : undefined,
+    });
+  };
+
+  // A helmet encloses the head. Upright ears (Shepherd, Corgi, Shiba) would
+  // poke through it, so they tuck inside; long hanging ears come out
+  // underneath. Each breed can also widen or shift a helmet to suit its
+  // head, and ask for its ears to be tucked (the Pug's small folded ears).
+  const helmet = !!headItem?.helmet;
+  const fit = helmet ? breed.helmetFit : undefined;
+  const earsTucked = helmet && (breed.pivots.earSign < 0 || !!fit?.tuckEars);
+  const headAnchor: Anchor = fit
+    ? { ...A.headTop, y: A.headTop.y + (fit.dy ?? 0), scale: A.headTop.scale * (fit.scale ?? 1) }
+    : A.headTop;
+
   // ── Body: fill, markings, fold lines, outfit, then the outline on top ──
   const body: Drawable[] = [
     { key: 'body-fill', shapes: [path(P.bodyPath, { fill: breed.palette.fur })] },
@@ -89,7 +115,13 @@ export function buildScene(breed: BreedDef, state: NovaState, equipped: Equipped
   } else if (P.bodyDetail.length) {
     body.push({ key: 'body-detail', shapes: P.bodyDetail });
   }
+  extras('body').forEach((e, i) => {
+    if (e.clip) body.push(extra(e, i, A.chest)); // on the fabric, under the outline
+  });
   body.push({ key: 'body-outline', shapes: [path(P.bodyPath, ol)] });
+  extras('body').forEach((e, i) => {
+    if (!e.clip) body.push(extra(e, i, A.chest)); // in front of the outline
+  });
   if (backItem?.front) body.push(worn(`clasp-${equipped.back}`, backItem.front, A.neck));
   if (neckItem) body.push(worn(`neck-${equipped.neck}`, neckItem.shapes, A.neck));
 
@@ -103,7 +135,11 @@ export function buildScene(breed: BreedDef, state: NovaState, equipped: Equipped
   return {
     shadow: d('shadow', P.shadow),
     aura: auraItem ? [worn(`aura-${equipped.aura}`, auraItem.shapes, A.aura, { fx: auraItem.fx })] : [],
-    back: backItem ? [worn(`back-${equipped.back}`, backItem.shapes, A.back, { fx: backItem.fx })] : [],
+    // The outfit's own cape first, then a separate back item over it.
+    back: [
+      ...extras('back').map((e, i) => extra(e, i, A.back)),
+      ...(backItem ? [worn(`back-${equipped.back}`, backItem.shapes, A.back, { fx: backItem.fx })] : []),
+    ],
     tail: d('tail', P.tail),
     body,
     pawL: d('pawL', P.pawL),
@@ -114,12 +150,15 @@ export function buildScene(breed: BreedDef, state: NovaState, equipped: Equipped
     eyesHappy: d('eyesHappy', P.eyesHappy),
     mouthClosed: d('mouthClosed', P.mouthClosed),
     mouthOpen: d('mouthOpen', P.mouthOpen),
-    face: faceItem ? [worn(`face-${equipped.face}`, faceItem.shapes, A.eyes, { fx: faceItem.fx })] : [],
-    earL: d('earL', P.earL),
-    earR: d('earR', P.earR),
+    face: [
+      ...extras('face').map((e, i) => extra(e, i, A.eyes)),
+      ...(faceItem ? [worn(`face-${equipped.face}`, faceItem.shapes, A.eyes, { fx: faceItem.fx })] : []),
+    ],
+    earL: earsTucked ? [] : d('earL', P.earL),
+    earR: earsTucked ? [] : d('earR', P.earR),
     knotTuft: d('knotTuft', P.knotTuft),
     knotBase: d('knotBase', P.knotBase),
-    headItem: headItem ? [worn(`head-${equipped.head}`, headItem.shapes, A.headTop, { fx: headItem.fx })] : [],
+    headItem: headItem ? [worn(`head-${equipped.head}`, headItem.shapes, headAnchor, { fx: headItem.fx })] : [],
     partyHat: headItem ? [] : [worn('celebration-hat', partyHat.shapes, A.headTop)],
     held: heldItem ? [worn(`held-${equipped.held}`, heldItem.shapes, A.frontPaw, { fx: heldItem.fx })] : [],
     tuftHidden: !!headItem?.coversKnot,

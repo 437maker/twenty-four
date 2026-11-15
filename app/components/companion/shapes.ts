@@ -27,7 +27,11 @@ export type Shape = (
 export interface Anchor { x: number; y: number; rotation: number; scale: number }
 
 // Looping effects an item can have. All of them stop under Reduce Motion.
-export type ItemFx = 'pulse' | 'bob' | 'spin';
+//   pulse    glows: fades a little and swells a little
+//   bob      floats up and down
+//   spin     turns a full circle (rune rings, orbiting dots)
+//   shimmer  fades in and out without moving (a sheen on fabric, an aurora)
+export type ItemFx = 'pulse' | 'bob' | 'spin' | 'shimmer';
 
 export interface Drawable {
   key: string;

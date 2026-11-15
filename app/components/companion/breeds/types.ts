@@ -60,6 +60,12 @@ export interface BreedDef {
   // to (headTop on the head, back on the body, frontPaw on a paw), so these
   // are positions on the resting drawing; the rig carries them along.
   anchors: Record<NovaState, Record<AnchorName, Anchor>>;
+  // How a helmet sits on this head, relative to the headTop anchor:
+  // `scale` widens it for a wide head, `dy` moves it down (+) or up (-).
+  // Upright ears always tuck inside a helmet. `tuckEars` does the same for
+  // small folded ears that would otherwise stick out of its sides (the Pug).
+  // Leave it all out for a head the size of the Maltese's.
+  helmetFit?: { scale?: number; dy?: number; tuckEars?: boolean };
 }
 
 // Build the per-state anchor table from one base set plus optional per-state

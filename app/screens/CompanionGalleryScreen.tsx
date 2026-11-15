@@ -19,7 +19,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import Companion from '../components/companion/Companion';
 import { BREEDS } from '../components/companion/breeds';
-import { MAX_OUTFIT } from '../components/companion/items/itemSlots';
+import { HERO_OUTFIT, MAX_OUTFIT } from '../components/companion/items/itemSlots';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
 import RenameCompanionModal from '../components/RenameCompanionModal';
@@ -37,11 +37,12 @@ const BACKDROP_CHOICES: { key: BackdropName; label: string }[] = [
   { key: 'night', label: 'Night' },
 ];
 
-type OutfitChoice = 'mine' | 'none' | 'max';
+type OutfitChoice = 'mine' | 'none' | 'max' | 'hero';
 const OUTFIT_CHOICES: { key: OutfitChoice; label: string }[] = [
   { key: 'mine', label: 'What she wears now' },
   { key: 'none', label: 'Nothing' },
   { key: 'max', label: 'Max outfit' },
+  { key: 'hero', label: 'Hero outfit' },
 ];
 const NOTHING: Equipped = {};
 
@@ -90,7 +91,7 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
   const [breed, setBreed] = useState<string>(look.breed);
   const [outfit, setOutfit] = useState<OutfitChoice>('mine');
   const [renameVisible, setRenameVisible] = useState(false);
-  const equipped = outfit === 'max' ? MAX_OUTFIT : outfit === 'none' ? NOTHING : look.equipped;
+  const equipped = outfit === 'max' ? MAX_OUTFIT : outfit === 'hero' ? HERO_OUTFIT : outfit === 'none' ? NOTHING : look.equipped;
   const [taps, setTaps] = useState(0);
   const { width } = useWindowDimensions();
 
@@ -195,7 +196,7 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
               ))}
             </View>
             <Text style={styles.rowSub}>
-              "Max outfit" puts one item in every slot. If the frame counter stays near 60 with it on, everything lighter will too.
+              "Max outfit" puts one item in every slot. If the frame counter stays near 60 with it on, everything lighter will too. "Hero outfit" is a Tier 5 hero suit (three moving pieces) with a helmet and a bat.
             </Text>
           </View>
         </ScrollView>

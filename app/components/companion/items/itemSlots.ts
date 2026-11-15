@@ -1,7 +1,7 @@
 // itemSlots.ts — which slot each wearable shop item goes in.
 //
 // One item per slot. Putting an item into an occupied slot replaces the item
-// that was there. All 30 Outfit and Accessory items from the shop catalog are
+// that was there. All 50 Outfit and Accessory items from the shop catalog are
 // listed here exactly once. Houses and the Streak Shield are not wearable.
 //
 // Pure data: the database layer imports this to validate equips.
@@ -40,6 +40,25 @@ export const ITEM_SLOTS: Record<string, Slot> = {
   outfit_divine_vest: 'outfit',
   outfit_mythic_mantle: 'back',
 
+  // ── Sports jerseys ──
+  outfit_football_jersey: 'outfit',
+  outfit_baseball_jersey: 'outfit',
+  outfit_basketball_jersey: 'outfit',
+  outfit_hockey_jersey: 'outfit',
+
+  // ── Hero suits. A suit's cape is part of the suit, so the suit takes only
+  //    the outfit slot and a separate back item can still be worn with it. ──
+  outfit_hero_circuit_spark: 'outfit',
+  outfit_hero_tide_guardian: 'outfit',
+  outfit_hero_ember_comet: 'outfit',
+  outfit_hero_verdant_shield: 'outfit',
+  outfit_hero_aurora_knight: 'outfit',
+  outfit_hero_gravity_warden: 'outfit',
+  outfit_hero_frost_sentinel: 'outfit',
+  outfit_hero_solar_sovereign: 'outfit',
+  outfit_hero_quantum_drift: 'outfit',
+  outfit_hero_titan_24: 'outfit',
+
   // ── Accessories ──
   acc_bow_tie: 'neck',
   acc_sunglasses: 'face',
@@ -56,6 +75,14 @@ export const ITEM_SLOTS: Record<string, Slot> = {
   acc_infinity_gem: 'neck',
   acc_omnipotent_orb: 'held',
   acc_arcane_matrix: 'aura',        // a rune circle behind her
+
+  // ── Sports gear ──
+  acc_football_helmet: 'head',
+  acc_hockey_helmet: 'head',
+  acc_basketball: 'held',
+  acc_baseball_bat: 'held',
+  acc_football: 'held',
+  acc_hockey_stick: 'held',
 };
 
 export function slotForItem(itemId: string): Slot | null {
@@ -115,4 +142,12 @@ export const MAX_OUTFIT: Equipped = {
   back: 'acc_celestial_wings',
   held: 'acc_elemental_staff',
   aura: 'outfit_legendary_aura',
+};
+
+// A hero suit with a helmet and something held: the heaviest look made only
+// of the sports and hero items (a Tier 5 suit has three moving pieces).
+export const HERO_OUTFIT: Equipped = {
+  outfit: 'outfit_hero_titan_24',
+  head: 'acc_football_helmet',
+  held: 'acc_baseball_bat',
 };

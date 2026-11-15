@@ -99,4 +99,5 @@ export const PUG: BreedDef = {
     frontPaw: anchor(116, 184),
     aura: anchor(100, 108),
   }),
+  helmetFit: { scale: 1.05, tuckEars: true },   // a wide head, and ears that would stick out of the shell
 };

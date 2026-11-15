@@ -18,50 +18,13 @@
 // Style rules: flat color, one shade tone as the edge, readable at 64px.
 // Higher tiers get a little more (a glow, a few sparkles).
 
-import { circle, ellipse, line, mirrorAll, path, sparkle } from '../shapes';
-import type { ItemFx, Shape } from '../shapes';
+import { circle, ellipse, line, path, sparkle } from '../shapes';
+import { GOLD, GOLD_D, INK, WHITE, cape, collarBand, cord, garment, pair } from './artKit';
+import type { ItemArt } from './artKit';
+import { HERO_ART } from './heroArt';
+import { SPORTS_ART } from './sportsArt';
 
-export interface ItemArt {
-  shapes: Shape[];       // drawn at the slot's anchor
-  front?: Shape[];       // back items only: drawn at the neck anchor, in front of the body
-  clip?: boolean;        // true = clip to the body silhouette (outfits)
-  coversKnot?: boolean;  // head items that replace hair on top of the head (the Maltese topknot)
-  fx?: ItemFx;           // a looping effect; stops under Reduce Motion
-}
-
-// Mirror around x = 0 (items are drawn around their own centre).
-const m = (list: Shape[]) => mirrorAll(list, 0);
-const pair = (list: Shape[]) => [...list, ...m(list)];
-
-// ─── Outfit helpers ───────────────────────────────────────────────────────────
-// A sheet of fabric from above the neck down to `hem`. The body clip trims it.
-function garment(fill: string, shade: string, hem: number): Shape[] {
-  return [
-    path(`M -90 -60 L 90 -60 L 90 ${hem} L -90 ${hem} Z`, { fill }),
-    line(`M -90 ${hem} L 90 ${hem}`, shade, 3),
-  ];
-}
-// A collar band that shows just under the chin.
-function collarBand(fill: string, stroke: string): Shape {
-  return path('M -38 -30 Q 0 -8 38 -30 L 40 -20 Q 0 4 -40 -20 Z', { fill, stroke, sw: 1.8 });
-}
-// A cord or chain around the neck (neck items).
-const cord = (stroke: string, sw: number) => line('M -31 -7 Q 0 9 31 -7', stroke, sw);
-
-// A cape seen from the front: it flares out behind both sides of the body
-// and falls to the floor.
-function cape(fill: string, stroke: string, spread = 76): Shape[] {
-  const s = spread;
-  return [
-    path(`M -30 -24 C -64 -26 ${-s - 2} 4 ${-s} 50 L ${s} 50 C ${s + 2} 4 64 -26 30 -24 Z`, { fill, stroke, sw: 2.5 }),
-    ...pair([line(`M ${-s + 11} 8 L ${-s + 9} 46`, stroke, 2)]),
-  ];
-}
-
-const WHITE = '#FFFFFF';
-const GOLD = '#F6B93B';
-const GOLD_D = '#C98F1B';
-const INK = '#2B2420';
+export type { ItemArt, ItemExtra } from './artKit';
 
 export const ITEM_ART: Record<string, ItemArt> = {
   // ═══ OUTFITS ═════════════════════════════════════════════════════════════════
@@ -460,6 +423,10 @@ export const ITEM_ART: Record<string, ItemArt> = {
       ),
     ],
   },
+
+  // The 20 items added in the houses run live in their own files.
+  ...SPORTS_ART,
+  ...HERO_ART,
 };
 
 export function itemArt(itemId: string): ItemArt | null {

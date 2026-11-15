@@ -1,5 +1,7 @@
 // shopCatalog.ts — Hardcoded catalogue of all purchasable shop items.
 // Sprint 2: 5 tiers × 3 items per category (Outfit, Accessory, House) + Shields.
+// Houses run: 10 sports items (Tier 2) and 10 hero suits (Tiers 3–5). 66 items in all:
+// 29 outfits, 21 accessories, 15 houses, 1 shield.
 
 import { ShopItemDef } from '../types';
 
@@ -21,6 +23,24 @@ export const SHOP_CATALOG: ShopItemDef[] = [
   { id: 'outfit_divine_vest',    category: 'outfit', tier: 5, name: 'Divine Vestments',    description: 'Worn by those who have mastered the art of living.',         price: 450, emoji: '🌟' },
   { id: 'outfit_mythic_mantle',  category: 'outfit', tier: 5, name: 'Mythic Mantle',       description: 'A mantle reserved for the most legendary companions.',       price: 425, emoji: '💫' },
 
+  // ── Sports jerseys (Tier 2). App colors and the number 24 only: no league or team names, marks, or colors. ──
+  { id: 'outfit_football_jersey',   category: 'outfit', tier: 2, name: 'Football Jersey',   description: 'Number 24, ready for kickoff — every day is game day.',        price: 55,  emoji: '🏈' },
+  { id: 'outfit_baseball_jersey',   category: 'outfit', tier: 2, name: 'Baseball Jersey',   description: 'Pinstripes and patience — step up to the plate.',              price: 50,  emoji: '⚾' },
+  { id: 'outfit_basketball_jersey', category: 'outfit', tier: 2, name: 'Basketball Jersey', description: 'Light, quick, and always ready to take the shot.',             price: 50,  emoji: '🏀' },
+  { id: 'outfit_hockey_jersey',     category: 'outfit', tier: 2, name: 'Hockey Jersey',     description: 'Cool under pressure — built for the long season.',             price: 55,  emoji: '🏒' },
+
+  // ── Hero suits (Tiers 3–5). Original heroes made for 24; never model one on an existing character. ──
+  { id: 'outfit_hero_circuit_spark',   category: 'outfit', tier: 3, name: 'Circuit Spark',   description: 'Wired for focus — one bright idea after another.',             price: 115, emoji: '🔌' },
+  { id: 'outfit_hero_tide_guardian',   category: 'outfit', tier: 3, name: 'Tide Guardian',   description: 'Steady as the tide — calm comes back every time.',             price: 110, emoji: '🌊' },
+  { id: 'outfit_hero_ember_comet',     category: 'outfit', tier: 3, name: 'Ember Comet',     description: 'A streak of fire across your to-do list.',                     price: 125, emoji: '☄️' },
+  { id: 'outfit_hero_verdant_shield',  category: 'outfit', tier: 3, name: 'Verdant Shield',  description: 'Protects what grows — small habits, deep roots.',              price: 120, emoji: '🍃' },
+  { id: 'outfit_hero_aurora_knight',   category: 'outfit', tier: 4, name: 'Aurora Knight',   description: 'Armor lit by northern lights — brave through the long night.', price: 210, emoji: '🌈' },
+  { id: 'outfit_hero_gravity_warden',  category: 'outfit', tier: 4, name: 'Gravity Warden',  description: 'Keeps everything in orbit — nothing drifts off schedule.',     price: 220, emoji: '🪐' },
+  { id: 'outfit_hero_frost_sentinel',  category: 'outfit', tier: 4, name: 'Frost Sentinel',  description: 'Crystal-clear focus that never melts under pressure.',         price: 205, emoji: '❄️' },
+  { id: 'outfit_hero_solar_sovereign', category: 'outfit', tier: 5, name: 'Solar Sovereign', description: 'Radiant from sunrise to sunset — the day answers to you.',     price: 440, emoji: '☀️' },
+  { id: 'outfit_hero_quantum_drift',   category: 'outfit', tier: 5, name: 'Quantum Drift',   description: 'In two places at once — and on time for both.',                price: 420, emoji: '⚛️' },
+  { id: 'outfit_hero_titan_24',        category: 'outfit', tier: 5, name: 'Titan of 24',     description: 'Four pillars, twenty-four hours — the hero of the whole day.', price: 450, emoji: '🕛' },
+
   // ── Accessories ───────────────────────────────────────────────────────────────
   { id: 'acc_bow_tie',           category: 'accessory', tier: 1, name: 'Bow Tie',          description: 'Sharp and dapper — a classic finishing touch.',              price: 20,  emoji: '🎀' },
   { id: 'acc_sunglasses',        category: 'accessory', tier: 1, name: 'Sunglasses',       description: 'Cool, confident, and ready to crush goals.',                 price: 22,  emoji: '😎' },
@@ -37,6 +57,14 @@ export const SHOP_CATALOG: ShopItemDef[] = [
   { id: 'acc_infinity_gem',      category: 'accessory', tier: 5, name: 'Infinity Gem',     description: 'Limitless potential, captured in a single stone.',           price: 380, emoji: '🔯' },
   { id: 'acc_omnipotent_orb',    category: 'accessory', tier: 5, name: 'Omnipotent Orb',   description: 'Wisdom beyond measure — earned by the most dedicated.',      price: 400, emoji: '🌐' },
   { id: 'acc_arcane_matrix',     category: 'accessory', tier: 5, name: 'Arcane Matrix',    description: 'The pinnacle of mystical craftsmanship.',                    price: 390, emoji: '🧿' },
+
+  // ── Sports gear (Tier 2) ──
+  { id: 'acc_football_helmet',   category: 'accessory', tier: 2, name: 'Football Helmet',  description: 'Head down, eyes up — tackle the day.',                       price: 50,  emoji: '🪖' },
+  { id: 'acc_hockey_helmet',     category: 'accessory', tier: 2, name: 'Hockey Helmet',    description: 'Strapped in and ready for every face-off.',                  price: 48,  emoji: '⛑️' },
+  { id: 'acc_basketball',        category: 'accessory', tier: 2, name: 'Basketball',       description: 'Keep the ball rolling — one bounce at a time.',              price: 42,  emoji: '🏀' },
+  { id: 'acc_baseball_bat',      category: 'accessory', tier: 2, name: 'Baseball Bat',     description: 'Swing for the fences on every goal.',                        price: 45,  emoji: '🏏' },
+  { id: 'acc_football',          category: 'accessory', tier: 2, name: 'Football',         description: 'Carry it over the line — every yard counts.',                price: 44,  emoji: '🏈' },
+  { id: 'acc_hockey_stick',      category: 'accessory', tier: 2, name: 'Hockey Stick',     description: 'Keep your stick on the ice and your eye on the goal.',       price: 46,  emoji: '🏒' },
 
   // ── House ─────────────────────────────────────────────────────────────────────
   { id: 'house_cozy_den',        category: 'house', tier: 1, name: 'Cozy Den',             description: 'A snug little home for well-deserved rest.',                 price: 30,  emoji: '🏠' },
@@ -59,9 +87,11 @@ export const SHOP_CATALOG: ShopItemDef[] = [
   { id: 'shield',                category: 'shield', tier: 1, name: 'Streak Shield',        description: 'Protects your streak for one missed day. Stackable!',       price: 50,  emoji: '🛡️' },
 ];
 
-// Convenience: get items by category
+// Convenience: get items by category, cheapest tier first. Within a tier the
+// order is the order above (the sort is stable), so newer items of a tier
+// follow the older ones.
 export function getCatalogByCategory(category: string): ShopItemDef[] {
-  return SHOP_CATALOG.filter((item) => item.category === category);
+  return SHOP_CATALOG.filter((item) => item.category === category).sort((a, b) => a.tier - b.tier);
 }
 
 // Convenience: get a single item by ID
