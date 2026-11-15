@@ -41,6 +41,7 @@ import {
 import { Task, NewTaskInput, Pillar, RepeatType } from '../types';
 import { getTodayString, formatDisplayDate } from '../utils/dateHelpers';
 import { calculateNewStreak, isStreakMilestone } from '../utils/calculations';
+import SettingsScreen from './SettingsScreen';
 
 // ─── Wheel data ───────────────────────────────────────────────────────────────
 const HOURS    = ['1','2','3','4','5','6','7','8','9','10','11','12'];
@@ -372,6 +373,8 @@ export default function ScheduleScreen() {
   const [conflictIds, setConflictIds]   = useState<Set<number>>(new Set());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTask, setEditingTask]   = useState<Task | null>(null);
 
@@ -616,6 +619,16 @@ export default function ScheduleScreen() {
         >
           <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.schedGearBtn}
+          onPress={() => setSettingsVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+          hitSlop={8}
+          testID="schedule-settings-gear"
+        >
+          <Text style={styles.schedGearIcon}>⚙️</Text>
+        </TouchableOpacity>
       </View>
 
       {showDatePicker && (
@@ -657,6 +670,8 @@ export default function ScheduleScreen() {
           </View>
         }
       />
+
+      <SettingsScreen visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
 
       <TouchableOpacity
         style={styles.addBtn}
@@ -832,6 +847,8 @@ const styles = StyleSheet.create({
   },
   arrowBtn:      { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   arrow:         { fontSize: 34, color: '#3C3489', fontWeight: '300' },
+  schedGearBtn:  { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  schedGearIcon: { fontSize: 20 },
   dateTouchable: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   dateLabel:     { fontSize: 18, fontWeight: '700', color: '#1F2937' },
   dateSub:       { fontSize: 13, color: '#6B7280', marginTop: 2 },

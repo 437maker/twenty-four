@@ -483,8 +483,16 @@ function YardHeader({
       {/* Compact balance score next to Nova */}
       <BalanceChip score={balanceScore} />
 
-      {/* Settings gear (kept from the old header) */}
-      <TouchableOpacity style={styles.gearBtn} onPress={onSettings} accessibilityLabel="Open settings">
+      {/* Settings gear — zIndex keeps it above Reanimated gesture layers;
+          hitSlop reaches the 44pt iOS minimum touch target. */}
+      <TouchableOpacity
+        style={styles.gearBtn}
+        onPress={onSettings}
+        accessibilityLabel="Open settings"
+        accessibilityRole="button"
+        hitSlop={{ top: 3, bottom: 3, left: 3, right: 3 }}
+        testID="home-settings-gear"
+      >
         <Text style={styles.gearIcon}>⚙️</Text>
       </TouchableOpacity>
     </View>
@@ -1043,7 +1051,7 @@ const styles = StyleSheet.create({
   },
   balanceValue: { fontSize: 20, fontWeight: '800', lineHeight: 22 },
   balanceLabel: { fontSize: 10, fontWeight: '700', color: COLORS.inkSoft, textTransform: 'uppercase', letterSpacing: 0.6 },
-  gearBtn: { position: 'absolute', top: 8, right: 10, width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  gearBtn: { position: 'absolute', top: 8, right: 10, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
   gearIcon: { fontSize: 22 },
 
   // Identity row
