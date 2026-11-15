@@ -102,8 +102,8 @@ afterEach(() => {
 // Item → slot mapping
 // ─────────────────────────────────────────────────────────────────────────────
 describe('item slots', () => {
-  test('the shop has 29 outfits and 21 accessories, and all 50 are mapped', () => {
-    expect(WEARABLES).toHaveLength(50);
+  test('the shop has 29 outfits and 31 accessories, and all 60 are mapped', () => {
+    expect(WEARABLES).toHaveLength(60);
     for (const item of WEARABLES) {
       expect(SLOTS).toContain(ITEM_SLOTS[item.id]);
     }
@@ -112,7 +112,7 @@ describe('item slots', () => {
   test('nothing is mapped that the shop does not sell as an outfit or accessory', () => {
     const sold = new Set(WEARABLES.map((i) => i.id));
     for (const id of Object.keys(ITEM_SLOTS)) expect(sold.has(id)).toBe(true);
-    expect(Object.keys(ITEM_SLOTS)).toHaveLength(50);
+    expect(Object.keys(ITEM_SLOTS)).toHaveLength(60);
   });
 
   test('houses and the streak shield are not wearable', () => {
@@ -528,7 +528,11 @@ describe('scene', () => {
 
   test('effects are only on the items that should have them', () => {
     const fx = Object.entries(ITEM_ART).filter(([, a]) => a.fx).map(([id]) => id).sort();
-    expect(fx).toEqual(['acc_arcane_matrix', 'acc_cosmic_halo', 'acc_omnipotent_orb', 'outfit_legendary_aura']);
+    expect(fx).toEqual([
+      'acc_arcane_matrix', 'acc_cosmic_halo', 'acc_hero_clock_shield',
+      'acc_hero_orbit_gauntlet', 'acc_hero_phase_mask', 'acc_hero_sun_medallion',
+      'acc_omnipotent_orb', 'outfit_legendary_aura',
+    ]);
   });
 });
 

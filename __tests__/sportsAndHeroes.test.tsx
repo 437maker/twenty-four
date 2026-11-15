@@ -25,10 +25,11 @@ import CompanionSvg from '../app/components/companion/CompanionSvg';
 import { BREEDS, getBreed } from '../app/components/companion/breeds';
 import { STATES } from '../app/components/companion/breeds/types';
 import { ITEM_ART } from '../app/components/companion/items/itemArt';
+import { HERO_ACC_ART } from '../app/components/companion/items/heroAccessoryArt';
 import { HERO_ART } from '../app/components/companion/items/heroArt';
 import { SPORTS_ART } from '../app/components/companion/items/sportsArt';
 import { num24 } from '../app/components/companion/items/artKit';
-import { HERO_OUTFIT, ITEM_SLOTS, SLOTS, parseEquipped, withItem } from '../app/components/companion/items/itemSlots';
+import { HERO_OUTFIT, HERO_SUIT_PAIRS, ITEM_SLOTS, SLOTS, parseEquipped, withItem } from '../app/components/companion/items/itemSlots';
 import { buildScene } from '../app/components/companion/scene';
 import type { SceneLayers } from '../app/components/companion/scene';
 import type { Drawable } from '../app/components/companion/shapes';
@@ -64,17 +65,30 @@ const HEROES: Record<string, [string, number, number]> = {
   outfit_hero_quantum_drift: ['Quantum Drift', 5, 420],
   outfit_hero_titan_24: ['Titan of 24', 5, 450],
 };
+const HERO_ACCS: Record<string, [string, number, number]> = {
+  acc_hero_spark_visor:    ['face', 3, 80],
+  acc_hero_tide_trident:   ['held', 3, 78],
+  acc_hero_comet_goggles:  ['face', 3, 85],
+  acc_hero_leaf_shield:    ['held', 3, 84],
+  acc_hero_aurora_helm:    ['head', 4, 150],
+  acc_hero_orbit_gauntlet: ['held', 4, 155],
+  acc_hero_frost_crown:    ['head', 4, 145],
+  acc_hero_sun_medallion:  ['neck', 5, 310],
+  acc_hero_phase_mask:     ['face', 5, 295],
+  acc_hero_clock_shield:   ['held', 5, 315],
+};
+
 const NEW_IDS = [...Object.keys(SPORTS), ...Object.keys(HEROES)];
 const HELMETS = ['acc_football_helmet', 'acc_hockey_helmet'];
 
-// Price bands per tier. Tier 2 starts at 42 because the spec prices the
-// Basketball at 42; every other band is the one the shop already used.
+// Price bands per tier. Tier 2 starts at 42 (Basketball); hero accessories
+// set new lower bounds for Tiers 3–5 (trident 78, frost crown 145, mask 295).
 const BANDS: Record<number, [number, number]> = {
   1: [18, 32],
   2: [42, 80],
-  3: [95, 160],
-  4: [180, 300],
-  5: [380, 550],
+  3: [78, 160],
+  4: [145, 300],
+  5: [295, 550],
 };
 
 const LAYERS: (keyof SceneLayers)[] = ['aura', 'back', 'body', 'face', 'headItem', 'held'];
@@ -93,16 +107,16 @@ async function render(element: React.ReactElement): Promise<ReactTestRenderer> {
 // Catalog, slots, art
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the 20 new wearables', () => {
-  test('there are 20 of them, and 50 wearables in all', () => {
+  test('there are 20 of them, and 60 wearables in all (Phase B adds 10 hero accessories)', () => {
     expect(NEW_IDS).toHaveLength(20);
     expect(new Set(NEW_IDS).size).toBe(20);
-    expect(WEARABLES).toHaveLength(50);
+    expect(WEARABLES).toHaveLength(60);
     expect(SHOP_CATALOG.filter((i) => i.category === 'outfit')).toHaveLength(29);
-    expect(SHOP_CATALOG.filter((i) => i.category === 'accessory')).toHaveLength(21);
-    expect(SHOP_CATALOG).toHaveLength(66);
+    expect(SHOP_CATALOG.filter((i) => i.category === 'accessory')).toHaveLength(31);
+    expect(SHOP_CATALOG).toHaveLength(80);
   });
 
-  test('the item → slot mapping covers all 50 wearables, and nothing else', () => {
+  test('the item → slot mapping covers all 60 wearables, and nothing else', () => {
     expect(Object.keys(ITEM_SLOTS).sort()).toEqual(WEARABLES.map((i) => i.id).sort());
     for (const item of WEARABLES) expect(SLOTS).toContain(ITEM_SLOTS[item.id]);
   });
@@ -121,7 +135,8 @@ describe('the 20 new wearables', () => {
   test('the art tables hold exactly the new items', () => {
     expect(Object.keys(SPORTS_ART).sort()).toEqual(Object.keys(SPORTS).sort());
     expect(Object.keys(HERO_ART).sort()).toEqual(Object.keys(HEROES).sort());
-    expect(Object.keys(ITEM_ART)).toHaveLength(50);
+    expect(Object.keys(HERO_ACC_ART).sort()).toEqual(Object.keys(HERO_ACCS).sort());
+    expect(Object.keys(ITEM_ART)).toHaveLength(60);
   });
 
   test('catalog ids are unique', () => {
@@ -228,6 +243,61 @@ describe('the 20 new wearables', () => {
     // A hero suit replaces another outfit; it does not take the back slot.
     const worn = withItem({ outfit: 'outfit_cozy_sweater', back: 'acc_celestial_wings' }, 'outfit_hero_titan_24');
     expect(worn).toEqual({ outfit: 'outfit_hero_titan_24', back: 'acc_celestial_wings' });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hero accessories (Phase B)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('hero accessories', () => {
+  const ACC_IDS = Object.keys(HERO_ACCS);
+
+  test('each accessory is in the catalog, the slot table, and the art table', () => {
+    for (const id of ACC_IDS) {
+      const item = getCatalogItem(id);
+      expect(item).toBeDefined();
+      expect(item!.name.length).toBeGreaterThan(0);
+      expect(item!.description.length).toBeGreaterThan(10);
+      expect(item!.emoji.length).toBeGreaterThan(0);
+      expect(item!.category).toBe('accessory');
+      expect(ITEM_SLOTS[id]).toBeDefined();
+      expect(ITEM_ART[id]).toBeDefined();
+      expect(ITEM_ART[id].shapes.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('slot, tier and price match the spec', () => {
+    for (const [id, [slot, tier, price]] of Object.entries(HERO_ACCS)) {
+      const item = getCatalogItem(id)!;
+      expect(ITEM_SLOTS[id]).toBe(slot);
+      expect(item.tier).toBe(tier);
+      expect(item.price).toBe(price);
+    }
+  });
+
+  test('each accessory maps to exactly one hero suit, and all ten suits are covered', () => {
+    const coveredSuits = new Set(Object.values(HERO_SUIT_PAIRS));
+    for (const id of ACC_IDS) {
+      expect(HERO_SUIT_PAIRS[id]).toBeDefined();
+      expect(ITEM_SLOTS[HERO_SUIT_PAIRS[id]]).toBe('outfit');
+    }
+    for (const suitId of Object.keys(HEROES)) {
+      expect(coveredSuits.has(suitId)).toBe(true);
+    }
+  });
+
+  test('no accessory uses the outfit slot, and suits are not in HERO_SUIT_PAIRS', () => {
+    for (const id of ACC_IDS) expect(ITEM_SLOTS[id]).not.toBe('outfit');
+    for (const suitId of Object.keys(HEROES)) expect(HERO_SUIT_PAIRS[suitId]).toBeUndefined();
+  });
+
+  test('every shape in every accessory art has a fill or stroke', () => {
+    for (const [id, art] of Object.entries(HERO_ACC_ART)) {
+      for (const s of art.shapes) {
+        const hasPaint = (s as { fill?: string; stroke?: string }).fill ?? (s as { fill?: string; stroke?: string }).stroke;
+        expect(hasPaint).toBeTruthy();
+      }
+    }
   });
 });
 

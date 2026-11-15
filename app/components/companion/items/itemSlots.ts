@@ -1,7 +1,7 @@
 // itemSlots.ts — which slot each wearable shop item goes in.
 //
 // One item per slot. Putting an item into an occupied slot replaces the item
-// that was there. All 50 Outfit and Accessory items from the shop catalog are
+// that was there. All 60 Outfit and Accessory items from the shop catalog are
 // listed here exactly once. Houses and the Streak Shield are not wearable.
 //
 // Pure data: the database layer imports this to validate equips.
@@ -83,7 +83,40 @@ export const ITEM_SLOTS: Record<string, Slot> = {
   acc_baseball_bat: 'held',
   acc_football: 'held',
   acc_hockey_stick: 'held',
+
+  // ── Hero accessories (one per hero suit, Tiers 3–5) ──
+  acc_hero_spark_visor:    'face',
+  acc_hero_tide_trident:   'held',
+  acc_hero_comet_goggles:  'face',
+  acc_hero_leaf_shield:    'held',
+  acc_hero_aurora_helm:    'head',
+  acc_hero_orbit_gauntlet: 'held',
+  acc_hero_frost_crown:    'head',
+  acc_hero_sun_medallion:  'neck',
+  acc_hero_phase_mask:     'face',
+  acc_hero_clock_shield:   'held',
 };
+
+// Accessory id → its matching hero suit id.
+// When both are equipped at the same time the shop shows a "Full set!" badge.
+export const HERO_SUIT_PAIRS: Record<string, string> = {
+  acc_hero_spark_visor:    'outfit_hero_circuit_spark',
+  acc_hero_tide_trident:   'outfit_hero_tide_guardian',
+  acc_hero_comet_goggles:  'outfit_hero_ember_comet',
+  acc_hero_leaf_shield:    'outfit_hero_verdant_shield',
+  acc_hero_aurora_helm:    'outfit_hero_aurora_knight',
+  acc_hero_orbit_gauntlet: 'outfit_hero_gravity_warden',
+  acc_hero_frost_crown:    'outfit_hero_frost_sentinel',
+  acc_hero_sun_medallion:  'outfit_hero_solar_sovereign',
+  acc_hero_phase_mask:     'outfit_hero_quantum_drift',
+  acc_hero_clock_shield:   'outfit_hero_titan_24',
+};
+
+// True when equipped contains both a hero accessory and its matching suit.
+export function heroSetComplete(equipped: Equipped, accessoryId: string): boolean {
+  const suit = HERO_SUIT_PAIRS[accessoryId];
+  return !!suit && equipped.outfit === suit && !!equipped[ITEM_SLOTS[accessoryId]];
+}
 
 export function slotForItem(itemId: string): Slot | null {
   return ITEM_SLOTS[itemId] ?? null;

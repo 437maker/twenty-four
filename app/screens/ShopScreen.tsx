@@ -2,7 +2,7 @@
 // Users spend "treats" (🦴) to buy cosmetic items and stackable streak shields.
 // Sprint 2: outfit, accessory, house, shield categories with owned-item tracking.
 
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,7 +35,7 @@ import type { HouseDef } from '../components/companion/houses';
 import { HouseScene, HouseStill, dogFrame } from '../components/companion/houses/HouseScene';
 import { sceneFit } from '../components/companion/houses/types';
 import { useReduceMotion } from '../components/companion/useReduceMotion';
-import { isEquipped, isWearable, slotForItem, withItem } from '../components/companion/items/itemSlots';
+import { HERO_SUIT_PAIRS, isEquipped, isWearable, slotForItem, withItem } from '../components/companion/items/itemSlots';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
 import { useAppStore } from '../store/useAppStore';
@@ -193,6 +193,18 @@ function ItemCard({
   const wearing = wearable && isEquipped(equipped, item.id);
   // Try-on: the dog as she is now, with this item put on (owned or not).
   const tryOn = useMemo(() => (wearable ? withItem(equipped, item.id) : equipped), [wearable, equipped, item.id]);
+  // Full set: this is a hero accessory AND the dog is currently wearing its matching suit.
+  const matchingSuit = HERO_SUIT_PAIRS[item.id];
+  const fullSet = !!matchingSuit && equipped.outfit === matchingSuit;
+  const sparkAnim = useRef(new Animated.Value(0)).current;
+  const prevFullSet = useRef(false);
+  useEffect(() => {
+    if (fullSet && !prevFullSet.current) {
+      sparkAnim.setValue(0);
+      Animated.timing(sparkAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    }
+    prevFullSet.current = fullSet;
+  }, [fullSet, sparkAnim]);
 
   return (
     <View style={styles.card}>
@@ -218,6 +230,11 @@ function ItemCard({
         </TouchableOpacity>
       ) : (
         <Text style={styles.cardEmoji}>{item.emoji}</Text>
+      )}
+      {fullSet && (
+        <Animated.Text style={[styles.fullSetBadge, { opacity: sparkAnim }]}>
+          ✨ Full set!
+        </Animated.Text>
       )}
       <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
       <Text style={styles.cardDescription} numberOfLines={3}>{item.description}</Text>
@@ -1038,6 +1055,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#D97706',
+  },
+
+  // ── Full set badge ───────────────────────────────────────────────────────────
+  fullSetBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D97706',
+    marginTop: 2,
+    marginBottom: 2,
   },
 
   // ── Tier badge ───────────────────────────────────────────────────────────────

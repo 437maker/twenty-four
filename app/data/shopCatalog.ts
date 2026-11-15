@@ -1,7 +1,8 @@
 // shopCatalog.ts — Hardcoded catalogue of all purchasable shop items.
 // Sprint 2: 5 tiers × 3 items per category (Outfit, Accessory, House) + Shields.
-// Houses run: 10 sports items (Tier 2) and 10 hero suits (Tiers 3–5). 66 items in all:
-// 29 outfits, 21 accessories, 15 houses, 1 shield.
+// Houses run: 10 sports items (Tier 2), 10 hero suits (Tiers 3–5), 10 hero
+// accessories (Tiers 3–5). 80 items in all:
+// 29 outfits, 31 accessories, 19 houses, 1 shield.
 
 import { ShopItemDef } from '../types';
 
@@ -65,6 +66,18 @@ export const SHOP_CATALOG: ShopItemDef[] = [
   { id: 'acc_baseball_bat',      category: 'accessory', tier: 2, name: 'Baseball Bat',     description: 'Swing for the fences on every goal.',                        price: 45,  emoji: '🏏' },
   { id: 'acc_football',          category: 'accessory', tier: 2, name: 'Football',         description: 'Carry it over the line — every yard counts.',                price: 44,  emoji: '🏈' },
   { id: 'acc_hockey_stick',      category: 'accessory', tier: 2, name: 'Hockey Stick',     description: 'Keep your stick on the ice and your eye on the goal.',       price: 46,  emoji: '🏒' },
+
+  // ── Hero accessories (Tiers 3–5). One signature piece per hero suit. ──
+  { id: 'acc_hero_spark_visor',    category: 'accessory', tier: 3, name: 'Spark Visor',      description: 'A slick navy visor traced in lime — wired for every challenge.',    price: 80,  emoji: '🔌' },
+  { id: 'acc_hero_tide_trident',   category: 'accessory', tier: 3, name: 'Tide Trident',     description: 'Three teal prongs tipped with water — steady as the sea.',           price: 78,  emoji: '🌊' },
+  { id: 'acc_hero_comet_goggles',  category: 'accessory', tier: 3, name: 'Comet Goggles',    description: 'Round amber flight lenses — the world looks faster through these.',   price: 85,  emoji: '☄️' },
+  { id: 'acc_hero_leaf_shield',    category: 'accessory', tier: 3, name: 'Leaf Shield',      description: 'A broad leaf held high — protects what is worth growing.',           price: 84,  emoji: '🍃' },
+  { id: 'acc_hero_aurora_helm',    category: 'accessory', tier: 4, name: 'Aurora Helm',      description: 'A visor helm lit by northern arcs — brave through the long night.',  price: 150, emoji: '🌈' },
+  { id: 'acc_hero_orbit_gauntlet', category: 'accessory', tier: 4, name: 'Orbit Gauntlet',   description: 'A staff with a living orbital — nothing drifts off schedule.',       price: 155, emoji: '🪐' },
+  { id: 'acc_hero_frost_crown',    category: 'accessory', tier: 4, name: 'Frost Crown',      description: 'Ice-spike points and crystal gems — clarity that never melts.',      price: 145, emoji: '❄️' },
+  { id: 'acc_hero_sun_medallion',  category: 'accessory', tier: 5, name: 'Sun Medallion',    description: 'A golden sun disk that pulses with every hour of the day.',          price: 310, emoji: '☀️' },
+  { id: 'acc_hero_phase_mask',     category: 'accessory', tier: 5, name: 'Phase Mask',       description: 'Holographic half-lenses — shimmering between realities.',            price: 295, emoji: '⚛️' },
+  { id: 'acc_hero_clock_shield',   category: 'accessory', tier: 5, name: 'Clock Shield',     description: 'A round shield face marked with four pillars and "24" at its heart.', price: 315, emoji: '🕛' },
 
   // ── Stadium houses (Tier 3). App colors only; no real team names, logos, or league marks. ──
   { id: 'house_football_stadium', category: 'house', tier: 3, name: 'Gridiron Stadium',  description: 'Purple stands, amber goalposts, and a "24" on the scoreboard.',   price: 155, emoji: '🏈' },

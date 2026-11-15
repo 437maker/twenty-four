@@ -21,6 +21,7 @@
 import { circle, ellipse, line, path, sparkle } from '../shapes';
 import { GOLD, GOLD_D, INK, WHITE, cape, collarBand, cord, garment, pair } from './artKit';
 import type { ItemArt } from './artKit';
+import { HERO_ACC_ART } from './heroAccessoryArt';
 import { HERO_ART } from './heroArt';
 import { SPORTS_ART } from './sportsArt';
 
@@ -424,9 +425,10 @@ export const ITEM_ART: Record<string, ItemArt> = {
     ],
   },
 
-  // The 20 items added in the houses run live in their own files.
+  // The 30 items added in the houses run live in their own files.
   ...SPORTS_ART,
   ...HERO_ART,
+  ...HERO_ACC_ART,
 };
 
 export function itemArt(itemId: string): ItemArt | null {
