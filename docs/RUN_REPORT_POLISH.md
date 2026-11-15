@@ -54,3 +54,8 @@ face accessories covered the eyes, which is most of what makes the dog cute.
 - `tsc --noEmit`: clean
 - `jest`: 790 tests in 19 suites, all passing (760 before this run)
 - iPhone checks added: MANUAL_CHECKS E1 to E6. Not run on a device in this run.
+
+## 4. Published
+
+- Update group `1e22b7a1-6201-43e7-867c-7cafab3929af` (branch main, iOS, runtime exposdk:58.0.0), from commit `19dbc1f`.
+- To roll back: `npx eas-cli update:republish --group 6c6b2cc4-9793-4fcc-a1b3-044ec7459ea2`
