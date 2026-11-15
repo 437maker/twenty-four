@@ -2,6 +2,7 @@
   "expo": {
     "name": "24",
     "slug": "twenty-four",
+    "scheme": "twentyfour",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

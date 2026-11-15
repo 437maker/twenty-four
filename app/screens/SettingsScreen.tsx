@@ -4,7 +4,7 @@
 // Phase 3:  Export writes a real .json file and opens the share sheet;
 //           "Delete all my data" with a two-step confirmation.
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, Component } from 'react';
 import {
   Modal,
   View,
@@ -48,6 +48,26 @@ const PRESETS_WITH_CARE = [
   { label: 'Founder', work: 10, personal: 5, sleep: 7, care: 2 },
   { label: 'Parent',  work: 6,  personal: 4, sleep: 8, care: 6 },
 ];
+
+// ─── CalendarErrorBoundary ────────────────────────────────────────────────────
+// Wraps CalendarSettingsScreen so a crash there (e.g. OAuth misconfiguration)
+// cannot take down the entire Settings modal.
+class CalendarErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
 
 interface Props {
   visible: boolean;
@@ -623,10 +643,12 @@ export default function SettingsScreen({ visible, onClose }: Props) {
         <CompanionGalleryScreen visible={galleryOpen} onClose={() => setGalleryOpen(false)} />
 
         {/* Nested modal for the calendar sync screen */}
-        <CalendarSettingsScreen
-          visible={calendarOpen}
-          onClose={() => setCalendarOpen(false)}
-        />
+        <CalendarErrorBoundary>
+          <CalendarSettingsScreen
+            visible={calendarOpen}
+            onClose={() => setCalendarOpen(false)}
+          />
+        </CalendarErrorBoundary>
       </View>
     </Modal>
   );

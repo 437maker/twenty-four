@@ -3,23 +3,32 @@
 // Reached from SettingsScreen → "Google Calendar Sync" row.
 //
 // States it handles:
-//   - Not signed in     → "Connect Google Calendar" button
+//   - Not signed in     → "Connect Google Calendar" button (lazy-mounted)
+//   - Expo Go           → info notice (useAuthRequest is never called)
 //   - Signed in, idle   → Show account email, last-sync time, "Sync now" + "Disconnect"
 //   - Syncing           → spinner + "Syncing…"
 //   - Sync errored      → red banner with message
 //
-// All sync work happens in services/calendarSync.ts; this screen is pure UI.
+// IMPORTANT: useGoogleSignIn (which calls Google.useAuthRequest) is intentionally
+// moved into GoogleSignInFlow, a child component that is only mounted after the
+// user taps "Connect Google Calendar". This prevents the deep-link error thrown
+// by expo-auth-session when the app has no custom scheme registered — which was
+// the crash reported for iPhone.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
+import Constants from 'expo-constants';
 
 import { useAppStore } from '../store/useAppStore';
-import { useGoogleSignIn, clearTokens } from '../services/googleAuth';
+import { useGoogleSignIn, clearTokens, GoogleTokens } from '../services/googleAuth';
 import { runSync, SyncResult } from '../services/calendarSync';
 import { saveSettings } from '../db/queries';
+
+// True when running inside Expo Go (storeClient); false for standalone / dev-client builds.
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
 interface Props {
   visible: boolean;
@@ -32,16 +41,7 @@ export default function CalendarSettingsScreen({ visible, onClose }: Props) {
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
-
-  // Sign-in hook: when OAuth completes, persist + immediately run first sync.
-  const { request, promptAsync } = useGoogleSignIn(async (_tokens, email) => {
-    await saveSettings({
-      google_account_email: email,
-      google_sync_enabled:  true,
-    });
-    await refreshSettings();
-    handleSyncNow(); // initial sync
-  });
+  const [connecting, setConnecting] = useState(false);
 
   const signedIn = !!settings?.google_account_email && settings?.google_sync_enabled;
 
@@ -65,6 +65,17 @@ export default function CalendarSettingsScreen({ visible, onClose }: Props) {
     }
   }, [busy, refreshSettings]);
 
+  // Called by GoogleSignInFlow once OAuth succeeds.
+  const handleSignInComplete = useCallback(async (_tokens: GoogleTokens, email: string) => {
+    setConnecting(false);
+    await saveSettings({
+      google_account_email: email,
+      google_sync_enabled:  true,
+    });
+    await refreshSettings();
+    handleSyncNow();
+  }, [refreshSettings, handleSyncNow]);
+
   // ── Disconnect ────────────────────────────────────────────────────────────
   async function handleDisconnect() {
     Alert.alert(
@@ -85,6 +96,7 @@ export default function CalendarSettingsScreen({ visible, onClose }: Props) {
             await refreshSettings();
             setLastResult(null);
             setError(null);
+            setConnecting(false);
           },
         },
       ]
@@ -127,14 +139,32 @@ export default function CalendarSettingsScreen({ visible, onClose }: Props) {
                 called &quot;Twenty-Four&quot; in your Google account — everything stays there
                 and doesn&apos;t touch your other calendars.
               </Text>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                disabled={!request}
-                onPress={() => promptAsync()}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.primaryBtnText}>Connect Google Calendar</Text>
-              </TouchableOpacity>
+
+              {isExpoGo ? (
+                // Expo Go cannot perform native deep-link redirects required by
+                // Google OAuth. Show an informative notice instead of the button.
+                <View style={styles.expoGoNotice}>
+                  <Text style={styles.expoGoText}>
+                    Google Calendar works in the full app build, not Expo Go.
+                  </Text>
+                </View>
+              ) : connecting ? (
+                // GoogleSignInFlow is the ONLY place useGoogleSignIn / useAuthRequest
+                // is called. It is mounted only after the user taps Connect.
+                <GoogleSignInFlow
+                  onComplete={handleSignInComplete}
+                  onCancel={() => setConnecting(false)}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={() => setConnecting(true)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.primaryBtnText}>Connect Google Calendar</Text>
+                </TouchableOpacity>
+              )}
+
               <Text style={styles.smallNote}>
                 Permissions requested: calendar read/write, your email address.
               </Text>
@@ -207,7 +237,42 @@ export default function CalendarSettingsScreen({ visible, onClose }: Props) {
   );
 }
 
-// Small UI helpers ─────────────────────────────────────────────────────────────
+// ─── GoogleSignInFlow ─────────────────────────────────────────────────────────
+// This component is mounted only when the user taps "Connect Google Calendar".
+// Mounting it is the first time Google.useAuthRequest is ever called.
+// It immediately opens the system browser for the OAuth flow.
+function GoogleSignInFlow({
+  onComplete,
+  onCancel,
+}: {
+  onComplete: (tokens: GoogleTokens, email: string) => void;
+  onCancel: () => void;
+}) {
+  const { request, promptAsync } = useGoogleSignIn(onComplete);
+  const prompted = useRef(false);
+
+  useEffect(() => {
+    if (!request || prompted.current) return;
+    prompted.current = true;
+    promptAsync()
+      .then((result) => {
+        // onComplete fires through useGoogleSignIn's internal effect on success.
+        // Handle any non-success outcome (cancel, dismiss, error) by resetting.
+        if (!result || result.type !== 'success') onCancel();
+      })
+      .catch(() => onCancel());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+
+  return (
+    <View style={styles.busyRow}>
+      <ActivityIndicator color="#3C3489" />
+      <Text style={styles.busyText}>Opening sign-in…</Text>
+    </View>
+  );
+}
+
+// ─── Small UI helpers ─────────────────────────────────────────────────────────
 function StatLine({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.statRow}>
@@ -217,11 +282,10 @@ function StatLine({ label, value }: { label: string; value: number }) {
   );
 }
 
-// Shim: useAppStore exposes loadSettings; we expose it as refreshSettings here
-// so this screen doesn't need to know about the store internals.
+// Shim: useAppStore exposes loadSettings; we expose it as refreshSettings here.
 function useAppStoreShim() {
-  const settings       = useAppStore((s) => s.settings);
-  const loadSettings   = useAppStore((s) => s.loadSettings);
+  const settings     = useAppStore((s) => s.settings);
+  const loadSettings = useAppStore((s) => s.loadSettings);
   return { settings, refreshSettings: loadSettings };
 }
 
@@ -281,11 +345,20 @@ const styles = StyleSheet.create({
     borderRadius:    8,
     marginTop:       14,
   },
-  errorText: { color: '#991B1B', fontSize: 13 },
-  smallNote: { color: '#9CA3AF', fontSize: 12, marginTop: 12, textAlign: 'center' },
+  errorText:  { color: '#991B1B', fontSize: 13 },
+  smallNote:  { color: '#9CA3AF', fontSize: 12, marginTop: 12, textAlign: 'center' },
   bulletText: { fontSize: 13, color: '#374151', lineHeight: 20 },
   disconnectBtn: {
     alignItems: 'center', paddingVertical: 12,
   },
   disconnectText: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
+  expoGoNotice: {
+    backgroundColor: '#FFF7ED',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F97316',
+    borderRadius:    8,
+    padding:         12,
+    marginTop:       4,
+  },
+  expoGoText: { color: '#9A3412', fontSize: 13, lineHeight: 18 },
 });
