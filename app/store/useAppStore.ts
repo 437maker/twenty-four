@@ -22,6 +22,7 @@ import {
   setDeliveryFeedback,
   saveDelivery,
   deliveryExistsForDate,
+  getDeliveryStats,
   getRecentJournalEntries,
 } from '../db/queries';
 import { chestForBoxTier } from '../data/chestLoot';
@@ -34,9 +35,10 @@ import { runSync, isSyncReady } from '../services/calendarSync';
 import { getTodayString, getYesterdayString } from '../utils/dateHelpers';
 import { computeWeekSignals } from '../utils/insights';
 import {
-  isoWeekString, weekDeliveryDays,
+  isoWeekString, weekDeliveryDays, deliveryProgress,
   pickContent, pushToHistory, parseHistory, getContentById,
 } from '../utils/delivery';
+import type { DeliveryProgress } from '../utils/delivery';
 
 // Date keys ("YYYY-MM-DD") must be the phone's LOCAL calendar day.
 // The old code cut the date out of toISOString(), which is UTC: in Boston
@@ -63,6 +65,8 @@ interface AppState {
 
   // Phase C: Treat deliveries
   pendingDeliveries: DeliveryRow[];
+  // Progress toward the first delivery (days / tasks / journals). null until checked.
+  deliveryProgress: DeliveryProgress | null;
   setPendingDeliveries: (v: DeliveryRow[]) => void;
   checkDeliveriesOnOpen: () => Promise<void>;
   openDeliveryAndGiveBones: (id: number) => Promise<void>;
@@ -114,6 +118,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isSyncing:          false,
   restResetToken:     0,
   pendingDeliveries:  [],
+  deliveryProgress:   null,
 
   loadSettings: async () => {
     const settings = await getSettings();
@@ -197,6 +202,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       shieldConsumed:     false,
       isSyncing:          false,
       pendingDeliveries:  [],
+      deliveryProgress:   null,
     });
     // Same step App.tsx runs on a real first launch: stamps app_start_date
     // and last_active_date so the new streak starts counting from today.
@@ -380,65 +386,68 @@ export const useAppStore = create<AppState>((set, get) => ({
     const today   = getTodayStr();
     const weekStr = isoWeekString(new Date());
 
-    // Schedule if we haven't done this week yet
-    if (settings.last_delivery_week !== weekStr) {
-      const [day1, day2] = weekDeliveryDays(weekStr);
-      await saveSettings({ last_delivery_week: weekStr });
+    // Data threshold: no scheduled deliveries until there is enough to go on
+    // (7 days of use, 10 completed tasks, 3 journal entries). Home shows a
+    // progress hint until then. A delivery forced from the tester menu is
+    // already in the table and still shows.
+    const stats = await getDeliveryStats();
+    const progress = deliveryProgress({
+      firstUseDate: settings.app_start_date,
+      today,
+      completedTasks: stats.completedTasks,
+      journalEntries: stats.journalEntries,
+    });
 
-      // Create delivery rows for days that are today or in the past and not yet inserted
-      for (const deliveryDate of [day1, day2]) {
-        if (deliveryDate <= today && !(await deliveryExistsForDate(deliveryDate))) {
-          await _insertDeliveryForDate(deliveryDate, settings);
-        }
+    if (progress.unlocked) {
+      if (settings.last_delivery_week !== weekStr) {
+        await saveSettings({ last_delivery_week: weekStr });
       }
-
-      // Store updated week in settings
-      settings.last_delivery_week = weekStr;
-    } else {
-      // Week already scheduled — check if today is a delivery day that hasn't been inserted
+      // Create a row for each delivery day that has arrived and has none yet.
       const [day1, day2] = weekDeliveryDays(weekStr);
       for (const deliveryDate of [day1, day2]) {
         if (deliveryDate <= today && !(await deliveryExistsForDate(deliveryDate))) {
-          await _insertDeliveryForDate(deliveryDate, settings);
+          const fresh = (await getSettings()) ?? settings; // history changes with each insert
+          await _insertDeliveryForDate(deliveryDate, fresh);
         }
       }
     }
 
-    // Cap pending deliveries at 2 (older ones stay as-is in DB, just don't surface)
-    const pending = await getPendingDeliveries();
-    set({ pendingDeliveries: pending.slice(0, 2) });
+    set({ deliveryProgress: progress, pendingDeliveries: await _shownDeliveries(get().pendingDeliveries) });
   },
 
+  // Opening pays the bones and marks the row opened, but the card STAYS on
+  // Home so the recommendation can be read. It leaves when it is dismissed
+  // (or the next time the app starts); it is always in the Analytics history.
   openDeliveryAndGiveBones: async (id) => {
+    const delivery = get().pendingDeliveries.find((d) => d.id === id);
     await openDelivery(id);
-    // Give +3 bones if not already given
-    const pending = get().pendingDeliveries;
-    const delivery = pending.find((d) => d.id === id);
     if (delivery && !delivery.bones_given) {
       await changeTreats(3);
       await logTreatEvent('journal_bonus', 3, 'Treat delivery opened');
       await markDeliveryBonesGiven(id);
     }
-    const updated = await getPendingDeliveries();
-    set({ pendingDeliveries: updated.slice(0, 2) });
+    set((s) => ({
+      pendingDeliveries: s.pendingDeliveries.map((d) =>
+        d.id === id ? { ...d, opened: true, bones_given: true } : d),
+    }));
     get().refreshTreatCount();
   },
 
   dismissDelivery: async (id) => {
     await openDelivery(id);
-    const updated = await getPendingDeliveries();
-    set({ pendingDeliveries: updated.slice(0, 2) });
+    set((s) => ({ pendingDeliveries: s.pendingDeliveries.filter((d) => d.id !== id) }));
+    set({ pendingDeliveries: await _shownDeliveries(get().pendingDeliveries) });
   },
 
   giveDeliveryFeedback: async (id, fb) => {
     await setDeliveryFeedback(id, fb);
+    const delivery = get().pendingDeliveries.find((d) => d.id === id);
+    set((s) => ({
+      pendingDeliveries: s.pendingDeliveries.map((d) => (d.id === id ? { ...d, feedback: fb } : d)),
+    }));
     // Adjust tag weights for future picks
     const settings = await getSettings();
-    if (!settings) return;
-    // Find the delivery row to get its content_id
-    const pending = get().pendingDeliveries;
-    const delivery = pending.find((d) => d.id === id);
-    if (!delivery) return;
+    if (!settings || !delivery) return;
     const content = getContentById(delivery.content_id);
     if (!content) return;
     const tags = content.item.tags ?? [];
@@ -453,18 +462,28 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleDeliverySaved: async (id, saved) => {
     await saveDelivery(id, saved);
+    set((s) => ({
+      pendingDeliveries: s.pendingDeliveries.map((d) => (d.id === id ? { ...d, saved } : d)),
+    }));
   },
 
+  // Tester only. Skips the data threshold and the schedule: every press adds
+  // a new delivery for today, even if today already has one.
   forceDelivery: async () => {
     const settings = await getSettings();
     if (!settings) return;
-    const today = getTodayStr();
-    if (await deliveryExistsForDate(today)) return;
-    await _insertDeliveryForDate(today, settings);
-    const pending = await getPendingDeliveries();
-    set({ pendingDeliveries: pending.slice(0, 2) });
+    await _insertDeliveryForDate(getTodayStr(), settings);
+    set({ pendingDeliveries: await _shownDeliveries(get().pendingDeliveries) });
   },
 }));
+
+// What Home shows: cards already opened this session (still being read),
+// then up to 2 unopened deliveries, oldest first.
+async function _shownDeliveries(current: DeliveryRow[]): Promise<DeliveryRow[]> {
+  const reading = current.filter((d) => d.opened);
+  const pending = (await getPendingDeliveries()).slice(0, 2);
+  return [...reading, ...pending.filter((p) => !reading.some((r) => r.id === p.id))];
+}
 
 // ─────────────────────────────────────────────────────────────
 // Module-level helper (not in the store, avoids `this` issues)
@@ -489,7 +508,12 @@ async function _insertDeliveryForDate(date: string, settings: Settings): Promise
   let tagWeights: Record<string, number> = {};
   try { tagWeights = JSON.parse(settings.delivery_tag_weights); } catch {}
 
-  const picked = pickContent(signals, recentContentIds, recentCardTypes, tagWeights);
+  // If the whole library was used in the last 8 weeks, or the rotation rule
+  // leaves nothing, relax the rules rather than deliver nothing.
+  const picked =
+    pickContent(signals, recentContentIds, recentCardTypes, tagWeights) ??
+    pickContent(signals, [], recentCardTypes, tagWeights) ??
+    pickContent(signals, [], [], tagWeights);
   if (!picked) return;
 
   await insertDelivery(date, picked.cardType, picked.contentId, picked.whyLine);

@@ -1073,6 +1073,19 @@ export async function deliveryExistsForDate(date: string): Promise<boolean> {
   return row !== null;
 }
 
+// What the delivery threshold counts: completed tasks and written journal
+// entries (an exception-day entry with no text does not count).
+export async function getDeliveryStats(): Promise<{ completedTasks: number; journalEntries: number }> {
+  const db = await getDatabase();
+  const t = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM tasks WHERE completed = 1 AND is_master = 0`
+  );
+  const j = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM journal_entries WHERE TRIM(reflection_text) <> ''`
+  );
+  return { completedTasks: Number(t?.n ?? 0), journalEntries: Number(j?.n ?? 0) };
+}
+
 // Every table the app owns. Export and wipe both walk this one list, so a
 // table can't be exported but not wiped (or the reverse). A test compares this
 // list with the tables the schema actually creates, so adding a table to

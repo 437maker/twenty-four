@@ -37,7 +37,7 @@ import {
   getAllDeliveries,
 } from '../db/queries';
 import type { DeliveryRow } from '../types';
-import { getContentById } from '../utils/delivery';
+import { resolveDeliveryCard } from '../utils/delivery';
 
 // Pure calculation helpers — no side effects, easy to test
 import {
@@ -696,17 +696,13 @@ export default function AnalyticsScreen() {
             <View style={styles.sectionBlock}>
               <Text style={styles.sectionTitle}>📦 Treat deliveries</Text>
               {deliveryHistory.map((d) => {
-                const content = getContentById(d.content_id);
-                const typeLabel: Record<string, string> = {
-                  quote: '💬', book: '📚', movie: '🎬', activity: '🎯',
-                };
-                const headline = !content ? 'Delivery'
-                  : d.card_type === 'quote'
-                    ? `"${(content.item as any).text?.slice(0, 60)}…"`
-                    : (content.item as any).title ?? 'Delivery';
+                const crisis = d.content_id === 'crisis';
+                const card = resolveDeliveryCard(d.content_id, d.why_line);
+                const emoji = crisis ? '💙' : card.typeLabel.split(' ')[0];
+                const headline = crisis ? 'Support card' : card.title;
                 return (
                   <View key={d.id} style={styles.deliveryHistoryRow}>
-                    <Text style={styles.deliveryHistoryEmoji}>{typeLabel[d.card_type] ?? '📦'}</Text>
+                    <Text style={styles.deliveryHistoryEmoji}>{emoji}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.deliveryHistoryHeadline} numberOfLines={2}>{headline}</Text>
                       <Text style={styles.deliveryHistoryDate}>{friendlyDate(d.delivered_on)}</Text>

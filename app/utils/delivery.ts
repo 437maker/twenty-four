@@ -335,3 +335,101 @@ export function pushToHistory(historyJson: string, newItem: string, maxItems: nu
 export function parseHistory(historyJson: string): string[] {
   try { return JSON.parse(historyJson); } catch { return []; }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Card view: what a delivery shows on screen
+// ─────────────────────────────────────────────────────────────
+// Every delivery row resolves to a real quote, book, movie or activity.
+// The lookup goes by content id alone (the stored card_type is not trusted),
+// and an id that no longer exists in the library falls back to a quote, so
+// a card can never come up blank.
+
+export interface DeliveryCardView {
+  type: DeliveryCardType;
+  typeLabel: string;   // "📚 Book"
+  title: string;       // the quote text, or the book / movie / activity title
+  meta: string;        // "— Mark Twain", "by Cal Newport", "2015", "20 min"
+  pitch: string;       // one-line pitch
+  why: string;         // "why you got this"
+}
+
+export const CARD_TYPE_LABEL: Record<DeliveryCardType, string> = {
+  quote:    '💬 Quote',
+  book:     '📚 Book',
+  movie:    '🎬 Watch',
+  activity: '🎯 Try this',
+};
+
+const WHY_FALLBACK: Record<DeliveryCardType, string> = {
+  quote:    'A thought for your week.',
+  book:     'Something worth reading.',
+  movie:    'Something worth watching.',
+  activity: 'Something worth trying.',
+};
+
+export const FALLBACK_CONTENT_ID = QUOTES[0].id;
+
+export function resolveDeliveryCard(contentId: string, whyLine?: string | null): DeliveryCardView {
+  const found = getContentById(contentId) ?? getContentById(FALLBACK_CONTENT_ID)!;
+  const why = (whyLine ?? '').trim() || WHY_FALLBACK[found.type];
+  const base = { type: found.type, typeLabel: CARD_TYPE_LABEL[found.type], why };
+  switch (found.type) {
+    case 'quote':
+      return { ...base, title: `“${found.item.text}”`, meta: `— ${found.item.attribution}`, pitch: 'A line to carry with you this week.' };
+    case 'book':
+      return { ...base, title: found.item.title, meta: `by ${found.item.author}`, pitch: found.item.pitch };
+    case 'movie':
+      return { ...base, title: found.item.title, meta: String(found.item.year), pitch: found.item.pitch };
+    case 'activity':
+      return {
+        ...base,
+        title: found.item.title,
+        meta: found.item.duration_min > 0 ? `${found.item.duration_min} min` : 'Any time',
+        pitch: found.item.pitch,
+      };
+  }
+}
+
+// Every content id the picker can return.
+export function allContentIds(): string[] {
+  return [
+    ...QUOTES.map((q) => q.id),
+    ...BOOKS.map((b) => b.id),
+    ...MOVIES.map((m) => m.id),
+    ...ACTIVITIES.map((a) => a.id),
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Data threshold: deliveries start once there is enough to go on
+// ─────────────────────────────────────────────────────────────
+
+export const DELIVERY_THRESHOLD = { days: 7, tasks: 10, journals: 3 } as const;
+
+export interface DeliveryProgress {
+  days: number;       // days since first use, capped at the threshold
+  tasks: number;      // completed tasks, capped
+  journals: number;   // journal entries, capped
+  unlocked: boolean;
+}
+
+function daysBetween(fromStr: string, toStr: string): number {
+  const [fy, fm, fd] = fromStr.split('-').map(Number);
+  const [ty, tm, td] = toStr.split('-').map(Number);
+  const ms = Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd);
+  return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 86400000)) : 0;
+}
+
+export function deliveryProgress(input: {
+  firstUseDate: string | null;   // "YYYY-MM-DD", null = today is the first day
+  today: string;
+  completedTasks: number;
+  journalEntries: number;
+}): DeliveryProgress {
+  const T = DELIVERY_THRESHOLD;
+  const rawDays = input.firstUseDate ? daysBetween(input.firstUseDate, input.today) : 0;
+  const days = Math.min(T.days, rawDays);
+  const tasks = Math.min(T.tasks, Math.max(0, input.completedTasks));
+  const journals = Math.min(T.journals, Math.max(0, input.journalEntries));
+  return { days, tasks, journals, unlocked: days >= T.days && tasks >= T.tasks && journals >= T.journals };
+}

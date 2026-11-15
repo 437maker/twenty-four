@@ -45,7 +45,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppStore } from '../store/useAppStore';
-import DeliveryCard from '../components/DeliveryCard';
+import DeliveryCard, { DeliveryUnlockHint } from '../components/DeliveryCard';
 import NovaCompanion from '../components/NovaCompanion';
 import type { Equipped } from '../components/companion/items/itemSlots';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
@@ -668,6 +668,8 @@ export default function HomeScreen() {
     refreshTreatCount,
     restResetToken,
     pendingDeliveries,
+    deliveryProgress,
+    checkDeliveriesOnOpen,
     openDeliveryAndGiveBones,
     dismissDelivery,
     giveDeliveryFeedback,
@@ -720,7 +722,10 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadAll();
-    }, [loadAll]),
+      // Tasks or journal entries may have changed on another tab: recount
+      // the delivery threshold and pick up any delivery that is now due.
+      checkDeliveriesOnOpen().catch(() => {});
+    }, [loadAll, checkDeliveriesOnOpen]),
   );
 
   async function onRefresh() {
@@ -895,11 +900,17 @@ export default function HomeScreen() {
           ))}
         </TouchableOpacity>
 
+        {/* Before the first delivery: how close it is (days / tasks / journals) */}
+        {pendingDeliveries.length === 0 && deliveryProgress && !deliveryProgress.unlocked && (
+          <DeliveryUnlockHint progress={deliveryProgress} />
+        )}
+
         {/* Treat deliveries (up to 2 pending) */}
         {pendingDeliveries.map((delivery) => (
           <DeliveryCard
             key={delivery.id}
             delivery={delivery}
+            reduceMotion={reduceMotion}
             onOpen={() => openDeliveryAndGiveBones(delivery.id)}
             onDismiss={() => dismissDelivery(delivery.id)}
             onFeedback={(fb) => giveDeliveryFeedback(delivery.id, fb)}

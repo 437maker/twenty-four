@@ -309,7 +309,7 @@ export default function SettingsScreen({ visible, onClose }: Props) {
 
   async function testerForceDelivery() {
     await forceDelivery();
-    Alert.alert('Tester', 'Delivery forced for today (if one did not already exist).');
+    Alert.alert('Tester', 'A treat delivery is waiting on Home.');
   }
 
   const appVersion = Constants.expoConfig?.version ?? '—';
