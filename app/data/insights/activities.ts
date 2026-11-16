@@ -73,4 +73,13 @@ export const ACTIVITIES: ActivityItem[] = [
   { id: 'a38', title: 'Sign up for something new: class, club, or challenge', pitch: 'Commitment creates momentum. Find one new thing and register.', tags: ['challenge', 'motivate', 'personal', 'school'], pillars: ['personal'], duration_min: 15 },
   { id: 'a39', title: 'Read for 30 minutes with no interruptions', pitch: 'Set your phone to Do Not Disturb. 30 unbroken minutes with a good book.', tags: ['personal', 'comfort', 'calm', 'school'], pillars: ['personal'], duration_min: 30 },
   { id: 'a40', title: 'Write down 3 things you want to accomplish this week', pitch: 'Not a full to-do list. Just three things. Keep them somewhere visible.', tags: ['work', 'personal', 'motivate', 'focus'], pillars: ['work', 'personal'], duration_min: 5 },
+  // Small ways back in: for a week when follow-through was rough.
+  // Tagged 'process' and 'small-wins' (see scoreItem in utils/delivery.ts).
+  { id: 'a41', title: '2-minute start', pitch: 'Pick the task you keep moving. Work on it for two minutes, then you are allowed to stop.', tags: ['process', 'small-wins', 'work', 'focus'], pillars: ['work', 'personal'], duration_min: 2 },
+  { id: 'a42', title: 'Finish one tiny task', pitch: 'Choose the smallest thing on your list and finish it completely. One done beats five started.', tags: ['process', 'small-wins', 'work'], pillars: ['work'], duration_min: 5 },
+  { id: 'a43', title: 'Choose tomorrow\'s first step tonight', pitch: 'Write down one small action for the morning and put what you need for it where you will see it.', tags: ['process', 'small-wins', 'personal', 'calm'], pillars: ['personal', 'work'], duration_min: 3 },
+  { id: 'a44', title: '10 minutes, then stop', pitch: 'Set a timer for ten minutes on one task. When it rings, you are done, whatever got finished.', tags: ['process', 'small-wins', 'focus', 'work'], pillars: ['work', 'personal'], duration_min: 10 },
+  { id: 'a45', title: 'Cross one thing off without doing it', pitch: 'Find a task that no longer matters and delete it. A shorter list is easier to start.', tags: ['small-wins', 'calm', 'work', 'personal'], pillars: ['work', 'personal'], duration_min: 2 },
+  { id: 'a46', title: 'Clear one surface', pitch: 'One desk, one shelf, or one counter. A small visible win you can finish in five minutes.', tags: ['small-wins', 'care', 'calm'], pillars: ['care', 'personal'], duration_min: 5 },
+  { id: 'a47', title: 'Do one rep', pitch: 'One push-up, one page, one line of notes. The point is to show up, not to do a lot.', tags: ['process', 'small-wins', 'fitness', 'personal'], pillars: ['personal', 'care'], duration_min: 1 },
 ];

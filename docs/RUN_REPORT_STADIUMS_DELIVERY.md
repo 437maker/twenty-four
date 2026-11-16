@@ -43,12 +43,28 @@ Nothing was skipped.
 | Type | Count | Notes |
 |---|---|---|
 | Quotes | 60 | ≤25 words each; well-known or attributed to "24"; no song lyrics |
-| Books | 40 | title, author, one-line pitch, pillar tags |
-| Movies / shows | 40 | title, year, one-line pitch, pillar tags |
-| Activities | 40 | title, pitch, pillar tags, duration_min |
-| **Total items** | **180** | unique ids across all four types |
+| Books | 44 | title, author, one-line pitch, pillar tags |
+| Movies / shows | 44 | title, year, one-line pitch, pillar tags |
+| Activities | 47 | title, pitch, pillar tags, duration_min |
+| **Total items** | **195** | unique ids across all four types |
+
+15 of these were added by the lively run (2026-11-16) and are tagged
+`process` or `small-wins`: 7 activities, 4 books, 4 films.
 
 ## Delivery picker rules
+
+Scores start at 50. What adds to a score (`scoreItem` in `utils/delivery.ts`):
+
+| When | Items tagged | Points |
+|---|---|---|
+| Journal mood negative or trending down | `comfort` / `calm` | +20 / +10 |
+| More than 2 stressed words | `calm` / `comfort` | +15 / +10 |
+| More than 2 tired words | `sleep` / `care` | +15 / +10 |
+| A strong week | `challenge` / `motivate` | +20 / +10 |
+| Under 40% of tasks done (3 or more tasks) | `process` or `small-wins` | +20 |
+| A pillar is the most neglected | items for that pillar | +25 |
+| A dominant theme in the journal | that theme | +15 |
+| 👍 / 👎 given before | the tags of that card | the stored weight |
 
 - **Scheduler:** mulberry32 seeded with `year * 1000 + week`. Same week always
   gives the same two delivery days. Days are non-consecutive (gap ≥ 2).
@@ -60,6 +76,10 @@ Nothing was skipped.
 - **Mood weighting:** negative mood → 2× score boost for items tagged `comfort`.
 - **Pillar weighting:** most neglected pillar → 1.5× score boost for activities
   with that pillar tag.
+- **Follow-through weighting** (added 2026-11-16): fewer than 40% of the
+  week's tasks done, with at least 3 tasks in the week → +20 for items
+  tagged `process` or `small-wins`. Their why line reads "Rough
+  follow-through this week. Here's a small way back in."
 - **Repeat prevention:** last 56 content ids (≈8 weeks) stored in
   `delivery_content_history`. Any id in that set is excluded.
 - **Type rotation:** last 10 card types stored in `delivery_type_history`. If

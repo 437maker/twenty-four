@@ -558,3 +558,112 @@ Needs a fresh install (or Settings → reset all data).
 - [ ] Capes show behind the body on both sides. Masks leave both eyes visible.
 - [ ] Switch breed (press and hold the dog) and repeat for one suit with a
   mask and the Aurora Knight with its helm. Nothing floats or clips.
+
+---
+
+## Lively run (2026-11-16)
+
+Do these on the iPhone after the update has loaded (close and reopen Expo Go
+twice). None of them could be checked on the laptop.
+
+### F1. Watch Home for 2 minutes
+
+- [ ] Open Home in the daytime and leave it alone for 2 minutes. She does
+  something new about every 6 to 14 seconds: a yawn, a sneeze, a head tilt,
+  a ball, a shake.
+- [ ] No moment plays twice close together (never within the next 4).
+- [ ] Between moments she goes back to her usual breathing and blinking with
+  no jump.
+- [ ] Switch to another tab and back. She does not play anything while Home
+  is hidden.
+- [ ] Before 10am the first thing she does is a big stretch.
+
+### F2. Reactions
+
+- [ ] Schedule → tick a task → go to Home. She jumps and spins once.
+- [ ] Tick a Sleep task → Home. She yawns instead.
+- [ ] Journal → save an entry → Home. She comes up close and nuzzles.
+- [ ] On the day the streak reaches 7, 30 or 100: the celebration has extra
+  high jumps with a turn. There is no tester button for this. To see the
+  motion now, use Gallery → Moments → "Streak of 7: celebration".
+- [ ] Leave the app closed for a day, then open it. She runs in from the
+  left. (To test sooner: not possible without waiting; the rule is tested.)
+
+### F3. Outfits, breeds and the house
+
+- [ ] Put on a hero suit with a cape, a helmet, and the bat. Watch several
+  moments. The cape swings with her, the bat stays in the paw, nothing is
+  left behind when she steps sideways or rolls.
+- [ ] With a hero suit or the raincoat on, a proud pose shows up now and then.
+- [ ] Press and hold the dog, pick another breed, and watch a minute more.
+- [ ] Tap the house. Inside, asleep: after a while an ear or paw twitches,
+  and a dream bubble with a bone floats up.
+- [ ] Pet her (stroke across her head for a second) during a moment. The
+  moment stops and she leans into your hand.
+
+### F4. Frame rate
+
+- [ ] Settings → Companion Gallery → Wearing → "Max outfit".
+- [ ] Under Moments, tap "Roll over and wiggle", "Chase her tail", "Missed
+  you: run-up", and "Streak of 100: celebration".
+- [ ] The frame counter stays near 60 (green) through each one.
+
+### F5. Reduce Motion
+
+- [ ] iPhone Settings → Accessibility → Motion → Reduce Motion on.
+- [ ] On Home she only blinks slowly or gives a small wag. She never hops,
+  rolls or steps.
+- [ ] Tick a task → Home. A heart appears; she does not jump.
+
+### F6. The time picker
+
+- [ ] Schedule → + → the Start time wheels. Flick each one fast and slow. It
+  follows the finger with no stutter and lands on a row every time.
+- [ ] You feel one light tick per row, and a fast flick is a quick run of
+  ticks, not a buzz.
+- [ ] The middle row is white on purple; the rows above and below are
+  smaller and faded.
+- [ ] The time above the wheels changes when a wheel stops, not while it turns.
+- [ ] The Duration wheel: flick to 12 hr and back to 15 min. No blank rows.
+
+### F7. Chips and typing
+
+- [ ] Tap "Now": the time is the current quarter hour.
+- [ ] Tap "+15m", "+30m", "+1h": the time moves by that much and the wheels
+  turn to it.
+- [ ] Set 11:45 PM and tap "+30m": it reads 12:15 AM.
+- [ ] Tap the time. A field opens. Type `930p`, press Done: 9:30 PM.
+- [ ] Tap the time, type `9:75`, press Done: a red line says it is not a
+  time, and the old time is kept.
+- [ ] Duration chips: tap "1.5h". The wheel turns to "1 hr 30 min" and the
+  chip is filled.
+- [ ] Make a Work task of 2 hours and save. Tap + again: the duration starts
+  at 2 hr. Switch the pillar to Sleep: it goes to that pillar's last duration
+  (1 hr the first time).
+
+### F8. Journal prompts
+
+- [ ] Journal → Write. The prompt is there. Close and open again: the same
+  prompt.
+- [ ] Tap "🔄 Different prompt" a few times. The prompts change but stay on
+  the same kind of topic.
+- [ ] Keep tapping until a "Fill in the blanks" prompt shows. The sentence
+  with `___` is already in the writing box. Replace the blanks and save.
+- [ ] Find a "Rate 1 to 5" prompt. Five chips show. Pick 4, write a line,
+  save. The entry in the list starts with "Rating: 4/5". Open it again: 4 is
+  still picked.
+- [ ] Find a "Two-minute write" prompt. Press Start. The clock counts down
+  from 2:00. At 0:00 the phone thumps and it says "Time. Finish your
+  sentence." Stop and Again both work.
+- [ ] A "Zoom out, zoom in" prompt starts the box with "This month:" and
+  "The next hour:". A "note to future you" starts with "Dear future me,".
+- [ ] Try to save a fill-in prompt without changing anything: "Nothing to
+  save".
+
+### F9. A rough week's delivery
+
+- [ ] With fewer than 4 in 10 of this week's tasks ticked, Settings → tap the
+  version label 7 times → Force delivery, a few times. Some cards are small steps ("2-minute
+  start", "Do one rep") or a book or film about practice, and they say
+  "Rough follow-through this week. Here's a small way back in."
+

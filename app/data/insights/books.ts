@@ -72,4 +72,9 @@ export const BOOKS: BookItem[] = [
   { id: 'b38', title: 'Ikigai', author: 'Héctor García & Francesc Miralles', pitch: 'The Japanese secret to a long and happy life.', tags: ['personal', 'comfort', 'calm'], pillars: ['personal', 'care'] },
   { id: 'b39', title: 'The Subtle Art of Not Giving a F*ck', author: 'Mark Manson', pitch: 'A counterintuitive approach to living a good life.', tags: ['comfort', 'personal', 'resilience'], pillars: ['personal'] },
   { id: 'b40', title: 'Breath', author: 'James Nestor', pitch: 'The new science of a lost art that can change your mind and body.', tags: ['care', 'health', 'calm', 'sleep'], pillars: ['care', 'sleep'] },
+  // Craft and practice: for a week when follow-through was rough
+  { id: 'b41', title: 'Mastery', author: 'George Leonard', pitch: 'Why the long flat stretches of practice are where getting good actually happens.', tags: ['process', 'small-wins', 'personal', 'fitness'], pillars: ['personal'] },
+  { id: 'b42', title: 'The Practice', author: 'Seth Godin', pitch: 'Short chapters on showing up and doing the work, whether or not it feels like it.', tags: ['process', 'creativity', 'work'], pillars: ['work', 'personal'] },
+  { id: 'b43', title: 'The War of Art', author: 'Steven Pressfield', pitch: 'A short, blunt book about the pull to put things off, and how to sit down anyway.', tags: ['process', 'creativity', 'work', 'motivate'], pillars: ['work', 'personal'] },
+  { id: 'b44', title: 'Peak', author: 'Anders Ericsson & Robert Pool', pitch: 'What research says about practice: small, focused steps beat talent and long hours.', tags: ['process', 'small-wins', 'school', 'work'], pillars: ['work', 'personal'] },
 ];

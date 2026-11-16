@@ -118,11 +118,24 @@ export interface PickedContent {
   whyLine: string;
 }
 
+// A rough week for follow-through: under 40% of the week's tasks were done.
+// It needs at least 3 tasks, so a week with nothing planned does not count.
+export const LOW_FOLLOW_THROUGH = 0.4;
+export const LOW_FOLLOW_THROUGH_MIN_TASKS = 3;
+export const SMALL_WIN_TAGS = ['process', 'small-wins'] as const;
+export const LOW_FOLLOW_THROUGH_WHY = "Rough follow-through this week. Here's a small way back in.";
+
+export function isLowFollowThrough(signals: WeekSignals): boolean {
+  const { completionRate, taskCount } = signals.followThrough;
+  return taskCount >= LOW_FOLLOW_THROUGH_MIN_TASKS && completionRate < LOW_FOLLOW_THROUGH;
+}
+const isSmallWin = (tags: string[]) => tags.some((t) => (SMALL_WIN_TAGS as readonly string[]).includes(t));
+
 // Score a content item given the week's signals and tag weights.
-function scoreItem(itemTags: string[], itemPillars: string[], signals: WeekSignals, tagWeights: Record<string, number>): number {
+export function scoreItem(itemTags: string[], itemPillars: string[], signals: WeekSignals, tagWeights: Record<string, number>): number {
   let score = 50; // base
 
-  const { pillarBalance, followThrough, journalMood, themes, isStrongWeek } = signals;
+  const { pillarBalance, journalMood, themes, isStrongWeek } = signals;
 
   // Mood-down → comfort items get a boost
   if (journalMood.overallMood === 'negative' || journalMood.moodTrend === 'down') {
@@ -146,6 +159,12 @@ function scoreItem(itemTags: string[], itemPillars: string[], signals: WeekSigna
   if (isStrongWeek) {
     if (itemTags.includes('challenge')) score += 20;
     if (itemTags.includes('motivate'))  score += 10;
+  }
+
+  // Rough follow-through → small ways back in (a 2-minute start, a book or
+  // film about craft and practice). One boost, however many of the tags match.
+  if (isLowFollowThrough(signals) && isSmallWin(itemTags)) {
+    score += 20;
   }
 
   // Neglected pillar → matching item
@@ -259,6 +278,8 @@ function buildWhyLine(
     if (tags.includes('comfort')) return 'You\'ve had a tough week. This one\'s for you.';
     if (tags.includes('calm'))    return 'A little calm for a hectic week.';
   }
+
+  if (isLowFollowThrough(signals) && isSmallWin(tags)) return LOW_FOLLOW_THROUGH_WHY;
 
   if (isStrongWeek && tags.includes('challenge')) {
     return 'You\'re on a roll this week — here\'s a challenge.';

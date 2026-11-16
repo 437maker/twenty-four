@@ -952,3 +952,26 @@ Each entry says what was decided, why, and how to reverse it.
 - **Reverse:** in `JournalScreen.tsx` `openModal`, use `selectDailyPrompt`
   (still in `journalPrompts.ts`) instead of `selectSmartPrompt`.
 
+### D84. The low follow-through delivery rule
+- **What:** under 40% of the week's tasks done → +20 to items tagged
+  `process` or `small-wins`, with the why line "Rough follow-through this
+  week. Here's a small way back in." 15 new library items carry the tags.
+- **At least 3 tasks.** A week with no tasks has a completion rate of 0. The
+  spec's rule alone would call every empty week a rough one, so the rule
+  needs 3 tasks in the week. The same floor is used for the journal prompts.
+- **One boost per item,** even if it has both tags.
+- **The picks are not all small wins.** The picker chooses from the top fifth
+  by score, and the neglected-pillar boost (+25) is still larger.
+- **The picker's rules table** did not exist as a table. One was added to
+  `docs/RUN_REPORT_STADIUMS_DELIVERY.md` from the code, with the new row.
+- **Two wrong lines were left in that report** ("2x" and "1.5x" boosts under
+  "Mood weighting" and "Pillar weighting"). The code adds points, as the new
+  table shows. They belong to the earlier run's report and were not edited.
+- **Reverse:** remove the `isLowFollowThrough` block in `scoreItem`.
+
+### D85. Run housekeeping
+- Commits went straight to `main`, as in every earlier run, because
+  `npm run ship` publishes the working tree to the `main` channel.
+- The companion sheets were re-rendered. Ten changed slightly: capes and
+  wings now stretch a little in the celebrating pose (the new `cape` part).
+

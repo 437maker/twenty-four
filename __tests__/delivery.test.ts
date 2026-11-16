@@ -11,6 +11,10 @@ import {
   pushToHistory,
   parseHistory,
   getContentById,
+  scoreItem,
+  isLowFollowThrough,
+  SMALL_WIN_TAGS,
+  LOW_FOLLOW_THROUGH_WHY,
 } from '../app/utils/delivery';
 
 import {
@@ -435,6 +439,94 @@ describe('content library', () => {
     for (const b of BOOKS)     expect(getContentById(b.id)).not.toBeNull();
     for (const m of MOVIES)    expect(getContentById(m.id)).not.toBeNull();
     for (const a of ACTIVITIES) expect(getContentById(a.id)).not.toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Rough follow-through (lively run, Phase D)
+// ─────────────────────────────────────────────────────────────
+
+describe('rough follow-through', () => {
+  // A week where `done` of `total` tasks were completed.
+  const week = (done: number, total: number) =>
+    computeWeekSignals(
+      Array.from({ length: total }, (_, i) => makeTask({ completed: i < done })),
+      [],
+      BASE_SETTINGS,
+    );
+  const low = week(3, 10);     // 30%
+  const fine = week(6, 10);    // 60%
+
+  test('under 40% of at least 3 tasks counts; 40% or a near-empty week does not', () => {
+    expect(isLowFollowThrough(low)).toBe(true);
+    expect(isLowFollowThrough(week(39, 100))).toBe(true);
+    expect(isLowFollowThrough(week(4, 10))).toBe(false);  // exactly 40%
+    expect(isLowFollowThrough(fine)).toBe(false);
+    expect(isLowFollowThrough(week(0, 2))).toBe(false);   // too few tasks to judge
+    expect(isLowFollowThrough(week(0, 0))).toBe(false);   // nothing planned
+    expect(isLowFollowThrough(week(0, 3))).toBe(true);
+  });
+
+  test('+20 for items tagged process or small-wins, once, and only in a rough week', () => {
+    const score = (tags: string[], signals: ReturnType<typeof week>) => scoreItem(tags, [], signals, {});
+    const plain = score(['focus'], low);
+    expect(score(['process'], low) - plain).toBe(20);
+    expect(score(['small-wins'], low) - plain).toBe(20);
+    expect(score(['process', 'small-wins'], low) - plain).toBe(20); // not 40
+    // In an ordinary week the tags are worth nothing extra.
+    expect(score(['process', 'small-wins'], fine)).toBe(score(['focus'], fine));
+    // Other items are not pushed down.
+    expect(score(['focus'], low)).toBe(score(['focus'], fine));
+  });
+
+  test('at least 10 library items carry the tags, across activities, books and movies', () => {
+    const tagged = <T extends { id: string; tags: string[] }>(list: T[]): T[] =>
+      list.filter((x) => x.tags.some((t) => (SMALL_WIN_TAGS as readonly string[]).includes(t)));
+    const activities = tagged(ACTIVITIES);
+    const books = tagged(BOOKS);
+    const movies = tagged(MOVIES);
+    expect(activities.length + books.length + movies.length).toBeGreaterThanOrEqual(10);
+    expect(activities.length).toBeGreaterThanOrEqual(5);
+    expect(books.length).toBeGreaterThanOrEqual(3);
+    expect(movies.length).toBeGreaterThanOrEqual(3);
+    expect(activities.map((a) => a.title)).toContain('2-minute start');
+    for (const a of activities) expect(a.pitch.length).toBeGreaterThan(20);
+  });
+
+  test('a rough week is given a small way back in far more often, with its own why line', () => {
+    const isSmallWinId = (id: string) =>
+      (getContentById(id)!.item.tags as string[]).some((t) => (SMALL_WIN_TAGS as readonly string[]).includes(t));
+    // The same 200 seeds in an ordinary week, to compare against.
+    let ordinary = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      if (isSmallWinId(pickContent(fine, [], [], {}, mulberry32(seed))!.contentId)) ordinary += 1;
+    }
+    let smallWins = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const picked = pickContent(low, [], [], {}, mulberry32(seed))!;
+      const found = getContentById(picked.contentId)!;
+      const tags: string[] = found.item.tags;
+      if (tags.some((t) => (SMALL_WIN_TAGS as readonly string[]).includes(t))) {
+        smallWins += 1;
+        expect(picked.whyLine).toBe(LOW_FOLLOW_THROUGH_WHY);
+      } else {
+        expect(picked.whyLine).not.toBe(LOW_FOLLOW_THROUGH_WHY);
+      }
+    }
+    // 15 of 195 items carry the tags. The pick is from the top fifth by
+    // score, where they now share the band with the neglected-pillar items.
+    expect(smallWins).toBeGreaterThan(50);           // over a quarter of the picks
+    expect(smallWins).toBeGreaterThan(ordinary * 2); // and well above an ordinary week
+  });
+
+  test('an ordinary week never gets the rough-week line', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      expect(pickContent(fine, [], [], {}, mulberry32(seed))!.whyLine).not.toBe(LOW_FOLLOW_THROUGH_WHY);
+    }
+  });
+
+  test('the why line is the one in the spec', () => {
+    expect(LOW_FOLLOW_THROUGH_WHY).toBe("Rough follow-through this week. Here's a small way back in.");
   });
 });
 

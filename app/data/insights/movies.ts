@@ -68,4 +68,9 @@ export const MOVIES: MovieItem[] = [
   { id: 'm38', title: 'Encanto', year: 2021, pitch: 'A Colombian family each has a magical gift — except one girl, who discovers the real magic is in showing up.', tags: ['family', 'comfort', 'personal', 'motivate'], pillars: ['personal', 'care'] },
   { id: 'm39', title: 'Hoop Dreams', year: 1994, pitch: 'A landmark documentary following two Chicago teens who dream of playing in the NBA.', tags: ['motivate', 'resilience', 'challenge', 'family'], pillars: ['personal'] },
   { id: 'm40', title: 'Turning Red', year: 2022, pitch: 'A 13-year-old girl turns into a giant red panda when she gets too excited. A warm story about growing up.', tags: ['comfort', 'family', 'personal'], pillars: ['personal', 'care'] },
+  // Craft and practice: for a week when follow-through was rough
+  { id: 'm41', title: 'The Karate Kid', year: 1984, pitch: 'A teenager learns karate through chores that seem pointless, until they turn out to be the training.', tags: ['process', 'small-wins', 'motivate', 'comfort'], pillars: ['personal'] },
+  { id: 'm42', title: 'Searching for Bobby Fischer', year: 1993, pitch: 'A young chess player and the adults around him work out how to love the game and still get better at it.', tags: ['process', 'family', 'school'], pillars: ['personal'] },
+  { id: 'm43', title: 'My Octopus Teacher', year: 2020, pitch: 'A man swims in the same cold bay every day for a year, and the daily visit changes him.', tags: ['process', 'small-wins', 'nature', 'calm'], pillars: ['personal', 'care'] },
+  { id: 'm44', title: 'Akeelah and the Bee', year: 2006, pitch: 'An 11-year-old trains for the national spelling bee one word list at a time, with her whole street helping.', tags: ['process', 'small-wins', 'school', 'family', 'motivate'], pillars: ['personal'] },
 ];
