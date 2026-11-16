@@ -806,3 +806,56 @@ Each entry says what was decided, why, and how to reverse it.
 - **Reverse:** `git checkout ebb19f0 -- app/components/companion/houses/stadiums.ts
   app/components/companion/items/heroArt.ts
   app/components/companion/items/heroAccessoryArt.ts`.
+
+---
+
+## Lively run (2026-11-16)
+
+### D75. Idle moments are data on the existing rig
+- **What:** 21 idle and context moments and 7 event reactions, each a set of
+  keyframe tracks over the pose numbers (`moments.ts`). No new drawings of
+  the dog. The rig samples the tracks on the UI thread.
+- **Why:** one skeleton serves six breeds and 60 items. A moment that is only
+  numbers works for all of them without any per-breed work.
+- **Seven new pose numbers** (`dx`, `turn`, `zoom`, four paw offsets). The
+  spec said "built only from the existing rig and anchors"; these extend the
+  rig's pose, they add no new parts to draw. The alternative (15 numbers
+  only) could not show a step, a turn, or a paw swipe.
+- **"Roll over" is a flop onto her side** with a wiggle, not a full barrel
+  roll. She is a front-facing flat drawing; a full roll would show her
+  upside down with nothing drawn for her belly.
+- **"Chase her tail" and the task-done spin are a flat flip** (the dog
+  narrows to a line and comes back mirrored), for the same reason.
+- **Reverse:** remove `lively` from `<Companion>` in `YardDog.tsx`.
+
+### D76. The director's numbers
+- Gap 6 to 14 s, counted from the end of the last moment. History of 4.
+- Rare share 5% each (roll, butterfly). Over a long run a rare moment is
+  about 4% of all picks, because it is not offered for 4 picks after it plays.
+- Context moments weigh 3, ordinary ones 1, the two gentle ones 0.5.
+- Morning is 5am to 10am, evening is 8pm onward. "Night: drowsy blinks" is
+  the evening moment while she is awake. After 10pm she is already asleep in
+  the yard, so the asleep moments (drowsy peek, twitches) play then.
+- Under Reduce Motion: slow blink, small wag, drowsy blinks, drowsy peek.
+
+### D77. Event reactions wait for Home
+- Tasks are ticked on the Schedule tab and journal entries saved on the
+  Journal tab, where she is not on screen. The reaction is kept in the store
+  (`pendingReaction`) and played when Home is next in front.
+- One reaction is kept, the biggest: streak party > missed you > journal >
+  task. It is not saved to the database; closing the app drops it.
+- "Missed you" compares against a new `settings.last_opened_at`, written on
+  every launch. It fires on a cold start only, not when the app comes back
+  from the background.
+- A streak party plays on top of the existing celebration and extends it
+  (5 s, 6.5 s, 8 s for 7, 30, 100). Other milestone lengths use the 7 party
+  below 30, the 30 party below 100, and the 100 party from there up.
+
+### D78. Jest plays only a few frames of each moment
+- In jest each animation frame re-renders every animated view and keeps
+  about half a megabyte. Playing all 28 moments to the end on 6 breeds ran
+  the test process out of memory (4 GB).
+- The render tests start every moment on every breed for two frames, and
+  play one moment to the end. Every point of every moment on every breed is
+  checked without rendering, through `momentPose()` and `partTransform()`.
+

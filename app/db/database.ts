@@ -205,6 +205,13 @@ export async function initializeDatabase(): Promise<void> {
   await tryExec(db, `UPDATE settings SET delivery_content_history = '[]' WHERE delivery_content_history IS NULL OR delivery_content_history = ''`);
   await tryExec(db, `UPDATE settings SET delivery_tag_weights = '{}' WHERE delivery_tag_weights IS NULL OR delivery_tag_weights = ''`);
 
+  // ── Lively run: last app open, last used durations, journal prompt history ──
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN last_opened_at TEXT`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN last_durations TEXT NOT NULL DEFAULT '{}'`);
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN prompt_history TEXT NOT NULL DEFAULT '[]'`);
+  await tryExec(db, `UPDATE settings SET last_durations = '{}' WHERE last_durations IS NULL OR last_durations = ''`);
+  await tryExec(db, `UPDATE settings SET prompt_history = '[]' WHERE prompt_history IS NULL OR prompt_history = ''`);
+
   // Deliveries table: one row per scheduled delivery.
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS deliveries (

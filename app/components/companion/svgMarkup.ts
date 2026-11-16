@@ -14,10 +14,11 @@ import type { BackdropName } from './palette';
 import { POSES, outlineScaleForSize, partTransform } from './poses';
 import type { PartName, Pose } from './poses';
 import { buildScene } from './scene';
-import { ZEE, sparkle } from './shapes';
+import { BALL, BUTTERFLY, DREAM, PUFF, ZEE, sparkle } from './shapes';
 import type { Drawable, Shape } from './shapes';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const PROP_ART = { butterfly: BUTTERFLY, ball: BALL, puff: PUFF, dream: DREAM };
 
 // Per-render state (this module is synchronous, so module variables are safe).
 let outlineScale = 1;
@@ -78,6 +79,8 @@ export interface MarkupOptions {
   effects?: boolean;              // draw the "z"s / sparkles (default true)
   outlineScale?: number;          // thicker outline for small sizes
   idPrefix?: string;              // makes clip ids unique when several dogs share one SVG
+  // The prop of a moment (butterfly, ball, puff, dream) and where it is, for the review strips.
+  prop?: { kind: 'butterfly' | 'ball' | 'puff' | 'dream'; x: number; y: number; scale: number; opacity: number };
 }
 
 // Just the dog, in drawing units, without the outer <svg>.
@@ -132,7 +135,7 @@ export function companionInnerMarkup(opts: Omit<MarkupOptions, 'size' | 'backdro
     p(
       'root',
       drawables(scene.aura) +
-        p('body', drawables(scene.back)) +
+        p('body', p('cape', drawables(scene.back))) +
         p('tail', drawables(scene.tail)) +
         p('body', drawables(scene.body)) +
         p('pawL', drawables(scene.pawL)) +
@@ -140,7 +143,10 @@ export function companionInnerMarkup(opts: Omit<MarkupOptions, 'size' | 'backdro
         p('head', head) +
         p('pawR', drawables(scene.held)),
     ) +
-    effects;
+    effects +
+    (opts.prop && opts.prop.opacity > 0.01
+      ? at(opts.prop.x, opts.prop.y, opts.prop.scale, r2(opts.prop.opacity), shapes(PROP_ART[opts.prop.kind]))
+      : '');
 
   return (clipDefs.length ? `<defs>${clipDefs.join('')}</defs>` : '') + dog;
 }

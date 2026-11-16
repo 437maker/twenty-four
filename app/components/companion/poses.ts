@@ -26,6 +26,14 @@ export interface Pose {
   happyEyes: number;  // 0..1 crossfade to the smiling "^ ^" eyes
   mouthOpen: number;  // 0 = closed smile, 1 = open with tongue
   pawSpread: number;  // front paws slide outward, in units
+  // Added for the idle moments (moments.ts). All rest at 0.
+  dx: number;         // whole dog sideways, in units (the shadow follows)
+  turn: number;       // whole dog turning on the spot, degrees (180 = facing away, drawn mirrored)
+  zoom: number;       // whole dog bigger (+) or smaller (-): 0.1 = 10% bigger, as if she stepped closer
+  pawLDx: number;     // each front paw on its own, on top of pawSpread
+  pawLDy: number;     // negative = lifted
+  pawRDx: number;
+  pawRDy: number;
 }
 
 export const REST_POSE: Pose = {
@@ -33,6 +41,7 @@ export const REST_POSE: Pose = {
   headDx: 0, headDy: 0, headRot: 0,
   earL: 0, earR: 0, tail: 0, knot: 0,
   lid: 0, happyEyes: 0, mouthOpen: 0, pawSpread: 0,
+  dx: 0, turn: 0, zoom: 0, pawLDx: 0, pawLDy: 0, pawRDx: 0, pawRDy: 0,
 };
 
 // The key pose for each state. Loops (breathing, wagging, hopping) move
@@ -124,7 +133,7 @@ export const PIVOTS = {
 } as const;
 
 export type PartName =
-  | 'shadow' | 'root' | 'tail' | 'body' | 'pawL' | 'pawR' | 'head'
+  | 'shadow' | 'root' | 'tail' | 'body' | 'cape' | 'pawL' | 'pawR' | 'head'
   | 'earL' | 'earR' | 'knot' | 'lids' | 'eyesOpen' | 'eyesHappy'
   | 'mouthClosed' | 'mouthOpen';
 
@@ -147,15 +156,34 @@ export function partTransform(part: PartName, p: Pose, pv: RigPivots = DEFAULT_P
       // Shadow shrinks and fades as she leaves the ground.
       const lift = Math.min(1, Math.abs(Math.min(0, p.hop)) / 40);
       t.px = 100; t.py = 187;
-      t.sx = (1 - 0.35 * lift) * (0.6 + 0.4 * p.bodySx);
-      t.sy = 1 - 0.35 * lift;
+      t.tx = 0 + p.dx;
+      t.sx = (1 - 0.35 * lift) * (0.6 + 0.4 * p.bodySx) * (1 + p.zoom);
+      t.sy = (1 - 0.35 * lift) * (1 + p.zoom);
       t.opacity = 1 - 0.5 * lift;
       break;
     }
-    case 'root':
+    case 'root': {
+      // Turning on the spot is drawn as a flat flip: the dog narrows to a
+      // line at 90 degrees and comes back mirrored. Zoom grows from the ground.
+      const z = 1 + p.zoom;
+      const facing = Math.cos((p.turn * Math.PI) / 180);
       t.px = 100; t.py = 150;
-      t.ty = p.hop; t.rot = p.spin;
+      t.tx = 0 + p.dx;
+      t.ty = p.hop + 38 * (1 - z); // 38 units from the pivot to the ground: her feet stay on it
+      t.rot = p.spin;
+      t.sx = 0 + z * facing;
+      t.sy = z;
       break;
+    }
+    case 'cape': {
+      // Things worn on the back trail behind the motion: they swing against
+      // a spin or a sideways step and stretch a little while she is in the air.
+      const swing = 0 - p.spin * 0.3 - p.dx * 0.12;
+      t.px = 100; t.py = 128;
+      t.rot = Math.max(-12, Math.min(12, swing));
+      t.sy = 1 + Math.min(0.15, Math.max(0, 0 - p.hop) / 160);
+      break;
+    }
     case 'tail':
       t.px = pv.tail.x; t.py = pv.tail.y;
       t.rot = p.tail;
@@ -165,10 +193,12 @@ export function partTransform(part: PartName, p: Pose, pv: RigPivots = DEFAULT_P
       t.sx = p.bodySx; t.sy = p.bodySy;
       break;
     case 'pawL':
-      t.tx = 0 - p.pawSpread;
+      t.tx = 0 - p.pawSpread + p.pawLDx;
+      t.ty = 0 + p.pawLDy;
       break;
     case 'pawR':
-      t.tx = p.pawSpread;
+      t.tx = p.pawSpread + p.pawRDx;
+      t.ty = 0 + p.pawRDy;
       break;
     case 'head':
       // The head rides on the body: when the body squashes, the head sinks
@@ -202,12 +232,13 @@ export function partTransform(part: PartName, p: Pose, pv: RigPivots = DEFAULT_P
       t.opacity = p.happyEyes;
       break;
     case 'mouthClosed':
-      t.opacity = 1 - p.mouthOpen;
+      t.opacity = Math.max(0, 1 - p.mouthOpen);
       break;
     case 'mouthOpen':
+      // Above 1 the mouth keeps stretching (a yawn) but is no more opaque.
       t.px = 100; t.py = pv.mouthY;
       t.sy = 0.4 + 0.6 * p.mouthOpen;
-      t.opacity = p.mouthOpen;
+      t.opacity = Math.min(1, p.mouthOpen);
       break;
   }
   return t;

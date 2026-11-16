@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { MOMENTS } from '../components/companion/moments';
 import Companion from '../components/companion/Companion';
 import { BREEDS } from '../components/companion/breeds';
 import { HERO_OUTFIT, MAX_OUTFIT } from '../components/companion/items/itemSlots';
@@ -93,6 +94,9 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
   const [renameVisible, setRenameVisible] = useState(false);
   const equipped = outfit === 'max' ? MAX_OUTFIT : outfit === 'hero' ? HERO_OUTFIT : outfit === 'none' ? NOTHING : look.equipped;
   const [taps, setTaps] = useState(0);
+  // The moment last asked for with a button below. Each dog plays it if it
+  // fits the state she is in (a dream only plays on the sleeping dog).
+  const [preview, setPreview] = useState<{ id: string; n: number } | null>(null);
   const { width } = useWindowDimensions();
 
   const colors = BACKDROPS[backdrop];
@@ -122,6 +126,7 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
                   breed={breed}
                   equipped={equipped}
                   reduceMotion={reduceMotion}
+                  preview={preview}
                   label={`${look.name}, ${state}`}
                   onPress={() => setTaps((n) => n + 1)}
                 />
@@ -134,6 +139,23 @@ export default function CompanionGalleryScreen({ visible, onClose }: Props) {
             Tap her for a heart and a tick. Stroke sideways across her head for one second to pet her. Taps: {taps}
           </Text>
           {__DEV__ && <FrameCounter />}
+
+          <View style={styles.block}>
+            <Text style={styles.rowTitle}>Moments</Text>
+            <Text style={styles.rowSub}>
+              On Home she plays one of these every 6 to 14 seconds. Tap one to play it now, on the dog in the matching state. Watch the frame counter with "Max outfit" on.
+            </Text>
+            <View style={styles.chips}>
+              {MOMENTS.map((m) => (
+                <Chip
+                  key={m.id}
+                  label={m.label}
+                  selected={preview?.id === m.id}
+                  onPress={() => setPreview((p) => ({ id: m.id, n: (p?.n ?? 0) + 1 }))}
+                />
+              ))}
+            </View>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.rowText}>

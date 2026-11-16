@@ -25,6 +25,7 @@
 //   items/hero-sets-<breed>.png       each hero suit with its matching accessory (the full set), idle and happy
 //   items/hero-sets-64.png            every full set on every breed at the smallest size
 //   chests.png                        the three chests, closed and open
+//   moments/<moment id>.png           six key frames of each idle moment and event reaction, on two breeds
 //
 // Run:   npm run render:companion
 //        node scripts/render-companion.mjs some/dir            (write elsewhere)
@@ -34,6 +35,7 @@
 //        node scripts/render-companion.mjs some/dir houses     (only the house sheets)
 //        node scripts/render-companion.mjs some/dir stadiums   (only the stadium sheet)
 //        node scripts/render-companion.mjs some/dir herosets   (only the hero full-set sheets)
+//        node scripts/render-companion.mjs some/dir moments    (only the moment strips)
 //
 // Needs Node 22.15+ (it imports the app's TypeScript files directly; Node
 // strips the types). The only package it uses is @resvg/resvg-js, a
@@ -71,6 +73,7 @@ const { HOUSES } = await fromApp('houses/index.ts');
 const { houseInnerMarkup, houseSvgMarkup } = await fromApp('houses/houseMarkup.ts');
 const { shapesMarkup } = await fromApp('svgMarkup.ts');
 const { chestParts } = await fromApp('../chest/chestArt.ts');
+const { MOMENTS, momentPose, propPlace, baseStateOf, basePoseOf } = await fromApp('moments.ts');
 
 const outDir = path.resolve(root, process.argv[2] ?? 'docs/companion');
 const only = process.argv[3] ?? 'all'; // 'all' | 'items' | a breed id
@@ -347,6 +350,50 @@ if (only === 'all' || only === 'chests') {
       `<g transform="translate(0 -24) rotate(-14 12 50)">${shapesMarkup(parts.lid)}</g></g>`;
   });
   save('chests.png', `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="230" viewBox="0 0 300 230">${inner}</svg>`, 600);
+}
+
+
+// ─── Moment strips ────────────────────────────────────────────────────────────
+// Six key frames of every moment, left to right in time. Top row: the plain
+// Maltese. Bottom row: the German Shepherd in a hero suit with a cape, a
+// helmet and a bat, to check that what she wears follows the motion.
+// Each cell shows 20 units of margin around the drawing box, so a pose that
+// leaves the box (a roll, a run-up) can be seen.
+if (only === 'all' || only === 'moments') {
+  const FRAMES = [0.06, 0.24, 0.42, 0.58, 0.76, 0.93];
+  const ROWS = [
+    { breed: 'maltese', equipped: {} },
+    { breed: 'german_shepherd', equipped: HERO_OUTFIT },
+  ];
+  const CELL = 240;
+  for (const m of MOMENTS) {
+    const state = baseStateOf(m);
+    let inner = '';
+    ROWS.forEach((row, r) => {
+      FRAMES.forEach((t, c) => {
+        const pose = momentPose(basePoseOf(m), m.tracks, t);
+        const place = m.prop ? propPlace(m.tracks, t) : null;
+        const b = BACKDROPS.day;
+        inner +=
+          `<svg x="${c * CELL}" y="${r * CELL}" width="${CELL}" height="${CELL}" viewBox="-20 -20 ${CELL} ${CELL}">` +
+          `<rect x="-20" y="-20" width="${CELL}" height="${CELL}" fill="${b.sky}"/>` +
+          `<rect x="-20" y="150" width="${CELL}" height="70" fill="${b.ground}"/>` +
+          `<rect x="0" y="0" width="200" height="200" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-dasharray="4 4"/>` +
+          companionInnerMarkup({
+            state, breed: row.breed, equipped: row.equipped, pose, idPrefix: `m${cellId++}`,
+            prop: place ? { kind: m.prop, ...place } : undefined,
+          }) +
+          `</svg>`;
+      });
+    });
+    const w = FRAMES.length * CELL;
+    const h = ROWS.length * CELL;
+    save(
+      `moments/${m.id}.png`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}</svg>`,
+      FRAMES.length * 170,
+    );
+  }
 }
 
 console.log(`Wrote ${count} PNG files to ${path.relative(root, outDir) || '.'}`);

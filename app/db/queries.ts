@@ -74,6 +74,10 @@ export async function getSettings(): Promise<Settings | null> {
     delivery_type_history:        row.delivery_type_history ?? '[]',
     delivery_content_history:     row.delivery_content_history ?? '[]',
     delivery_tag_weights:         row.delivery_tag_weights ?? '{}',
+    // Lively run
+    last_opened_at:               row.last_opened_at ?? null,
+    last_durations:               row.last_durations ?? '{}',
+    prompt_history:               row.prompt_history ?? '[]',
   };
 }
 

@@ -569,6 +569,12 @@ export default function ScheduleScreen() {
 
   async function handleToggle(id: number, completed: boolean) {
     await toggleTaskComplete(id, completed);
+    // The dog reacts the next time Home is on screen: a jump and a spin, or
+    // a yawn for a Sleep task.
+    if (completed) {
+      const done = tasks.find((t) => t.id === id);
+      useAppStore.getState().queueReaction(done?.pillar === 'sleep' ? 'sleepyYawn' : 'taskDone');
+    }
     await loadTasks();
 
     if (selectedDate === getTodayString() && settings) {

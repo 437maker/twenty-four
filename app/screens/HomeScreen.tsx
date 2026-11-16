@@ -55,6 +55,8 @@ import { HouseScene, NIGHT_TINT, skyColor } from '../components/companion/houses
 import { sceneFit } from '../components/companion/houses/types';
 import YardDog from '../components/companion/houses/YardDog';
 import { currentSleepBlock } from '../components/companion/houses/restMachine';
+import { milestoneReaction } from '../components/companion/moments';
+import type { ReactionId } from '../components/companion/moments';
 import RenameCompanionModal from '../components/RenameCompanionModal';
 import ChestOpenModal, { ChestSvg } from '../components/chest/ChestOpenModal';
 import type { ChestTier } from '../data/chestLoot';
@@ -367,7 +369,9 @@ function YardStageArt({ stage, night }: { stage: number; night: boolean }) {
 // the NEW yard fades in on top (opacity 0 → 1, 700ms). Then the old layer is removed.
 function YardHeader({
   height, width, stage, house, night, novaState, balanceScore, reduceMotion, onSettings, companionName, breed, equipped, onLongPressDog, inSleepBlock, restResetToken,
+  reaction, onReaction, now,
 }: {
+  reaction: { id: ReactionId; n: number } | null; onReaction: (n: number) => void; now: Date;
   height: number; width: number; stage: number; house: HouseDef | null; night: boolean; novaState: NovaState; inSleepBlock: boolean;
   balanceScore: number; reduceMotion: boolean; onSettings: () => void;
   companionName: string; breed: string; equipped: Equipped; onLongPressDog: () => void;
@@ -479,6 +483,9 @@ function YardHeader({
         reduceMotion={reduceMotion}
         inSleepBlock={inSleepBlock}
         onLongPress={onLongPressDog}
+        reaction={reaction}
+        onReaction={onReaction}
+        now={now}
       />
 
       {/* Compact balance score next to Nova */}
@@ -674,6 +681,9 @@ export default function HomeScreen() {
     dismissDelivery,
     giveDeliveryFeedback,
     toggleDeliverySaved,
+    pendingReaction,
+    queueReaction,
+    clearReaction,
   } = useAppStore();
 
   const [yesterdayAdherence, setYesterdayAdherence] = useState(0);
@@ -740,10 +750,15 @@ export default function HomeScreen() {
     if (!pendingCelebration) return;
     setCelebModalVisible(true);
     setCelebratingInYard(true);
+    // A bigger streak gets a bigger party: more jumps, and a longer one.
+    const party = milestoneReaction(milestoneStreak);
+    queueReaction(party);
+    const extra = party === 'milestone100' ? 3000 : party === 'milestone30' ? 1500 : 0;
     fallAnim.setValue(0);
     Animated.timing(fallAnim, { toValue: 1, duration: 2800, useNativeDriver: true }).start();
-    const id = setTimeout(() => setCelebratingInYard(false), CELEBRATION_MS);
+    const id = setTimeout(() => setCelebratingInYard(false), CELEBRATION_MS + extra);
     return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCelebration, fallAnim]);
 
   useEffect(() => {
@@ -840,6 +855,9 @@ export default function HomeScreen() {
           onLongPressDog={() => setBreedPickerVisible(true)}
           onSettings={() => setSettingsVisible(true)}
           restResetToken={restResetToken}
+          reaction={pendingReaction}
+          onReaction={clearReaction}
+          now={now}
         />
 
         {/* Name + streak + yesterday's adherence */}

@@ -35,9 +35,14 @@ import { PALETTE } from './palette';
 import { REST_POSE, VIEWBOX, outlineScaleForSize, partTransform } from './poses';
 import type { PartName, Pose, RigPivots } from './poses';
 import { buildScene, sceneKey } from './scene';
-import { HEART, ZEE, sparkle } from './shapes';
-import type { Drawable } from './shapes';
+import { BALL, BUTTERFLY, DREAM, HEART, PUFF, ZEE, sparkle } from './shapes';
+import type { Drawable, Shape } from './shapes';
+import { PROP_KINDS, baseForState, getMoment, propPlace } from './moments';
+import type { Moment, PropKind, ReactionId } from './moments';
 import { PET_HOLD_MS, useCompanionRig } from './useCompanionRig';
+import type { CompanionRig } from './useCompanionRig';
+import { useIdleDirector } from './useIdleDirector';
+import type { MomentContext } from './useIdleDirector';
 import { lightTap } from './haptics';
 
 export interface CompanionProps {
@@ -51,6 +56,19 @@ export interface CompanionProps {
   /** What she is wearing: one shop item id per slot. */
   equipped?: Equipped;
   reduceMotion: boolean;
+  /**
+   * true = she plays an idle moment (a yawn, a sneeze, a roll...) every 6 to
+   * 14 seconds. The yard on Home turns this on; cards and modals leave it off.
+   */
+  lively?: boolean;
+  /** What the idle director should know: time of day, proud outfit, inside the house. */
+  context?: MomentContext;
+  /** An event reaction to play once. A new `n` plays it again. */
+  reaction?: { id: ReactionId; n: number } | null;
+  /** Called when a reaction has been started (or skipped because it did not fit). */
+  onReaction?: (n: number) => void;
+  /** Play this moment now: a new `n` plays it again (the buttons in the Gallery). */
+  preview?: { id: string; n: number } | null;
   /** false = no tap or petting (use inside React Native <Modal>s). Default true. */
   interactive?: boolean;
   /** Screen-reader label, e.g. "Nova is happy". */
@@ -98,7 +116,8 @@ function RigLayer({
         { translateX: t.tx * k },
         { translateY: t.ty * k },
         { rotate: `${t.rot}deg` },
-        { scaleX: Math.max(0.001, t.sx) },
+        // A turn passes through zero width on its way to the mirrored side.
+        { scaleX: Math.abs(t.sx) < 0.001 ? 0.001 : t.sx },
         { scaleY: Math.max(0.001, t.sy) },
       ],
     };
@@ -261,9 +280,46 @@ function Heart({ heart, k, still }: { heart: SharedValue<number>; k: number; sti
   );
 }
 
+// The prop of a moment (the butterfly, the ball, the sneeze puff, the dream
+// bubble). It sits outside the dog, in the same drawing box, and is placed
+// each frame from the tracks of the moment. Hidden unless its moment plays.
+const PROP_SHAPES: Record<PropKind, Shape[]> = { butterfly: BUTTERFLY, ball: BALL, puff: PUFF, dream: DREAM };
+
+function MomentProp({ kind, rig, k }: { kind: PropKind; rig: CompanionRig; k: number }) {
+  const code = PROP_KINDS.indexOf(kind) + 1;
+  const layer = useMemo<Drawable[]>(() => [{ key: kind, shapes: PROP_SHAPES[kind] }], [kind]);
+  const style = useAnimatedStyle(() => {
+    const tracks = rig.moment.value;
+    if (!tracks || rig.momentProp.value !== code) {
+      return { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }, { rotate: '0deg' }, { scaleX: 1 }] };
+    }
+    const t = rig.momentT.value;
+    const at = propPlace(tracks, t);
+    // The butterfly flaps; the ball rolls as far as it has travelled.
+    const flap = kind === 'butterfly' ? 0.3 + 0.7 * Math.abs(Math.sin(t * 50)) : 1;
+    const roll = kind === 'ball' ? at.x * 7 : 0;
+    return {
+      opacity: at.opacity,
+      transform: [
+        { translateX: (at.x - FX_BOX / 2) * k },
+        { translateY: (at.y - FX_BOX / 2) * k },
+        { scale: at.scale },
+        { rotate: `${roll}deg` },
+        { scaleX: flap },
+      ],
+    };
+  });
+  return (
+    <Animated.View pointerEvents="none" style={[fxFrame(k), style]}>
+      <LayerSvg drawables={layer} size={FX_BOX * k} viewBox={FX_VIEWBOX} />
+    </Animated.View>
+  );
+}
+
 // ─── The component ────────────────────────────────────────────────────────────
 export default function Companion({
   state, size, onPress, onLongPress, breed, equipped = NOTHING, reduceMotion, interactive = true, label, testID,
+  lively = false, context, reaction, onReaction, preview,
 }: CompanionProps) {
   const focused = useScreenFocused();
   const def = getBreed(breed);
@@ -278,6 +334,50 @@ export default function Companion({
     [scene],
   );
   const rig = useCompanionRig({ state, reduceMotion, paused: !focused, hatOn: scene.celebrationHat, hasFx });
+
+  // ── Moments: the idle director, event reactions, and the Gallery preview ──
+  // `busyUntil` is the time the thing now playing ends; the director waits for it.
+  const busyUntil = useRef(0);
+  const play = useRef((m: Moment) => {
+    busyUntil.current = Date.now() + m.ms;
+    rig.playMoment(m);
+  }).current;
+  const isBusy = useRef(() => Date.now() < busyUntil.current).current;
+  useIdleDirector({
+    enabled: lively && focused && state !== 'celebrating',
+    base: baseForState(state),
+    reduceMotion,
+    context,
+    isBusy,
+    play,
+  });
+
+  const onReactionRef = useRef(onReaction);
+  onReactionRef.current = onReaction;
+  const playedReaction = useRef<number | null>(null);
+  const reactionN = reaction?.n;
+  useEffect(() => {
+    if (!reaction || !focused || playedReaction.current === reaction.n) return;
+    const m = getMoment(reaction.id);
+    // The streak party is written for the celebrating pose: wait for it.
+    if (m && m.base === 'celebrate' && state !== 'celebrating') return;
+    playedReaction.current = reaction.n;
+    if (m && m.base === baseForState(state)) {
+      if (reduceMotion) rig.tap(); // Reduce Motion: a heart, and nothing travels
+      else play(m);
+    }
+    onReactionRef.current?.(reaction.n);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reactionN, focused, state]);
+
+  const previewN = preview?.n;
+  useEffect(() => {
+    if (!preview) return;
+    const m = getMoment(preview.id);
+    if (m && m.base === baseForState(state)) play(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewN]);
+  const showProps = lively || !!reaction || preview !== undefined;
 
   const k = size / VIEWBOX;                // drawing units → pixels
   const o = outlineScaleForSize(size);     // thicker outline when small
@@ -303,6 +403,7 @@ export default function Companion({
         if (!success) return;
         lightTap();
         rig.tap();
+        busyUntil.current = Math.max(busyUntil.current, Date.now() + 900);
         onPressRef.current?.();
       });
     const stroke = Gesture.Pan()
@@ -327,9 +428,13 @@ export default function Companion({
         if (!pet.active && Date.now() - pet.startedAt >= PET_HOLD_MS) {
           pet.active = true;
           lightTap();
+          rig.stopMoment(); // petting wins over whatever she was doing
           rig.petStart();
         }
-        if (pet.active) rig.petMove((e.x / size) * 2 - 1);
+        if (pet.active) {
+          busyUntil.current = Date.now() + 1500; // no idle moment while she is being petted
+          rig.petMove((e.x / size) * 2 - 1);
+        }
       })
       .onFinalize(() => {
         if (pet.active) rig.petEnd();
@@ -362,7 +467,12 @@ export default function Companion({
         <RigLayer part="root" pose={rig.pose} k={k} pv={pv}>
           {/* Behind everything: aura, then things worn on the back */}
           <Layers list={scene.aura} size={size} k={k} o={o} fx={rig.fx} id={id} />
-          {scene.back.length > 0 && <RigLayer part="body" pose={rig.pose} k={k} pv={pv}><Layers list={scene.back} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>}
+          {scene.back.length > 0 && (
+            <RigLayer part="body" pose={rig.pose} k={k} pv={pv}>
+              {/* Capes and wings trail a little behind her motion */}
+              <RigLayer part="cape" pose={rig.pose} k={k} pv={pv}><Layers list={scene.back} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
+            </RigLayer>
+          )}
           <RigLayer part="tail" pose={rig.pose} k={k} pv={pv}><Layers list={scene.tail} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
           {/* Body: fur, markings, outfit (clipped to the body), outline, neck items */}
           <RigLayer part="body" pose={rig.pose} k={k} pv={pv}><Layers list={scene.body} size={size} k={k} o={o} fx={rig.fx} id={id} /></RigLayer>
@@ -401,6 +511,7 @@ export default function Companion({
           [0, 1, 2].map((i) => <Zee key={i} index={i} zzz={rig.zzz} k={k} still={reduceMotion} />)}
         {state === 'celebrating' && !reduceMotion &&
           Array.from({ length: SPARKLE_COUNT }, (_, i) => <Sparkle key={i} index={i} sparks={rig.sparks} k={k} />)}
+        {showProps && PROP_KINDS.map((kind) => <MomentProp key={kind} kind={kind} rig={rig} k={k} />)}
         <Heart heart={rig.heart} k={k} still={reduceMotion} />
       </Animated.View>
     </View>

@@ -16,6 +16,9 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withT
 import type { NovaState } from '../../../types';
 import Companion from '../Companion';
 import type { Equipped } from '../items/itemSlots';
+import type { ReactionId } from '../moments';
+import { isProudOutfit, timeContext } from '../useIdleDirector';
+import type { MomentContext } from '../useIdleDirector';
 import { DOOR_FADE_MS, REST_START, WALK_MS, isInsideOrGoing, restReducer, walkPose } from './restMachine';
 import type { RestPhase, WalkPoints } from './restMachine';
 import { dogFrame } from './HouseScene';
@@ -33,12 +36,19 @@ export interface YardDogProps {
   inSleepBlock: boolean;     // the schedule is in a Sleep block right now
   onLongPress?: () => void;
   onPhase?: (phase: RestPhase) => void;
+  /** Something to react to (a task done, a journal entry saved...). */
+  reaction?: { id: ReactionId; n: number } | null;
+  /** Called once the reaction has been played or dropped. */
+  onReaction?: (n: number) => void;
+  /** The clock, so the idle moments can follow the time of day. */
+  now?: Date;
 }
 
 const walkEase = Easing.inOut(Easing.quad);
 
 export default function YardDog({
   house, fit, outsideState, name, breed, equipped, reduceMotion, inSleepBlock, onLongPress, onPhase,
+  reaction, onReaction, now,
 }: YardDogProps) {
   const [rest, dispatch] = useReducer(restReducer, REST_START);
   // True once she is through the door: from then on she shows the sleeping pose.
@@ -142,6 +152,23 @@ export default function YardDog({
   const state: NovaState = insidePose ? 'sleeping' : rest.phase === 'outside' ? outsideState : 'happy';
   const tap = () => dispatch('tap');
 
+  // ── Idle moments and reactions ──
+  // She plays idle moments while standing outside and while asleep inside,
+  // never during the walk. A reaction that arrives while she is not standing
+  // outside is dropped: it would be stale by the time she came out.
+  const settled = rest.phase === 'outside' || (rest.phase === 'inside' && insidePose);
+  const hour = (now ?? new Date()).getHours();
+  const context = useMemo<MomentContext>(() => {
+    const at = new Date();
+    at.setHours(hour);
+    return { ...timeContext(at), proud: isProudOutfit(equipped.outfit), inside: insidePose };
+  }, [hour, equipped.outfit, insidePose]);
+  const reactionN = reaction?.n;
+  useEffect(() => {
+    if (reaction && rest.phase !== 'outside') onReaction?.(reaction.n);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reactionN, rest.phase]);
+
   const hit = useMemo(() => {
     const tl = scenePoint(fit, house.hit.x, house.hit.y);
     return { left: tl.x, top: tl.y, width: house.hit.w * fit.k, height: house.hit.h * fit.k };
@@ -178,6 +205,10 @@ export default function YardDog({
           }
           onPress={insidePose ? tap : noop}
           onLongPress={onLongPress}
+          lively={settled}
+          context={context}
+          reaction={rest.phase === 'outside' ? reaction : null}
+          onReaction={onReaction}
           testID="yard-dog"
         />
       </Animated.View>

@@ -82,6 +82,10 @@ export interface Settings {
   delivery_type_history:   string;        // JSON array of last card types (rotation guard)
   delivery_content_history: string;       // JSON array of last content_ids (8-week repeat guard)
   delivery_tag_weights:    string;        // JSON map of tag → weight delta from 👍/👎
+  // Lively run
+  last_opened_at:  string | null;  // ISO time the app was last opened (for the "missed you" greeting)
+  last_durations:  string;         // JSON map from pillar to the duration (hours) last used for it
+  prompt_history:  string;         // JSON array of { id, date } for journal prompts shown in the last 30 days
 }
 
 // ─── Input types ──────────────────────────────────────────────────────────────

@@ -145,7 +145,7 @@ function CompanionSvg({ state, size, breed, equipped, pose }: CompanionSvgProps)
       {part('root', (
         <>
           {D(scene.aura)}
-          {part('body', D(scene.back))}
+          {part('body', part('cape', D(scene.back)))}
           {part('tail', D(scene.tail))}
           {part('body', D(scene.body))}
           {part('pawL', D(scene.pawL))}

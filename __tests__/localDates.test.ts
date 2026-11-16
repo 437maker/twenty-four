@@ -91,6 +91,9 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     delivery_type_history:     '[]',
     delivery_content_history:  '[]',
     delivery_tag_weights:      '{}',
+    last_opened_at:            null,
+    last_durations:            '{}',
+    prompt_history:            '[]',
     ...overrides,
   };
 }

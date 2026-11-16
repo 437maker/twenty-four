@@ -376,6 +376,87 @@ To change how long the walk takes: `WALK_MS` and `DOOR_FADE_MS` in
 `restMachine.ts`. To move where she rests in a house: `rest` in its
 `HouseDef` (then render the sheets and look at `houses-inside.png`).
 
+<!-- COMPANION_ADD: sections added by the lively run, 2026-11-16 -->
+## Moments
+
+On Home she no longer just breathes and blinks. Every 6 to 14 seconds she
+plays a short "moment", and she reacts when things happen in the app.
+
+A moment is 1 to 3.5 seconds of motion on top of the state she is in. It is
+data only (`moments.ts`): for each pose number it moves, a short list of keys
+("at 40% of the moment, the head is 12 units lower"). No new drawing is made
+for a moment, so every breed and every outfit works with every moment.
+
+**Idle moments** (picked at random while she stands in the yard):
+yawn and stretch, scratch behind the ear, chase her tail, sniff and wander,
+head tilt, wag burst, sneeze, roll over and wiggle, watch a butterfly, bat at
+a ball, sit then lie down, shake, look around, playful bow, and two gentle
+ones (slow blink, small wag).
+
+**Context moments** (three times as likely as an ordinary one, when they fit):
+
+| When | Moment |
+|---|---|
+| 5am to 10am | a big stretch. It is also the first thing she does on a morning visit |
+| 8pm onward | drowsy blinks |
+| wearing the raincoat or a hero suit | a proud pose |
+| asleep (outside at night, or inside) | a drowsy peek, twitches |
+| asleep inside the house | a dream bubble with a bone in it |
+
+**Event reactions** (played once, the next time Home is on screen):
+
+| Event | Reaction |
+|---|---|
+| a task is ticked off | a jump with a full turn |
+| a Sleep task is ticked off | a long yawn |
+| a journal entry is saved | she trots up close and nuzzles |
+| streak of 7, 30, 100 | 2, 3, or 4 high jumps with a turn each, on top of the celebration, which also lasts longer |
+| the app opens 24 hours or more after the last open | she runs in from the side and wiggles |
+
+If several happen before Home is seen, the biggest one is played. A reaction
+that arrives while she is inside the house or walking is dropped.
+
+**The rules of a pick** (`useIdleDirector.ts`, `pickMoment()`):
+- never a moment that was one of the last 4
+- the roll and the butterfly are rare: 5 picks in 100 each
+- under Reduce Motion only the gentle moments are offered, and a reaction is
+  a heart with no movement
+- nothing is picked while a reaction plays, while she is being petted,
+  during the celebration, during the walk into the house, or when Home is
+  not the screen in front
+
+**New pose numbers.** Moments needed seven more numbers in a pose, all 0 at
+rest: `dx` (a step sideways), `turn` (turning on the spot, drawn as a flat
+flip), `zoom` (stepping closer), and an offset for each front paw. A held
+item rides on the right paw layer, so it stays in the paw. Capes and wings
+are on a new `cape` part that swings against a spin or a step and stretches
+in a jump.
+
+**Props.** The butterfly, ball, sneeze puff, and dream bubble are four small
+drawings in `shapes.ts`. Each is one layer outside the dog, placed from the
+tracks of the moment (`propX`, `propY`, `propS`, `propO`).
+
+**How it runs.** Starting a moment is three assignments from JavaScript
+(the tracks, the prop, and one timer from 0 to 1). Every frame is then
+computed on the UI thread inside the rig's `pose`. While a moment plays, the
+state's own hops and wags fade out, and fade back in after.
+
+**Review strips:** `docs/companion/moments/<moment id>.png`: six key frames
+of each moment. Top row the plain Maltese, bottom row the German Shepherd in
+a hero suit with a cape, a helmet, and a bat. Redraw them with
+`node --no-warnings scripts/render-companion.mjs docs/companion moments`.
+
+| Round | What was wrong | What changed |
+|---|---|---|
+| 1 | The sneeze puff was white on a white chest and could not be seen. The dream bubble was too small to read. On the roll, the ear underneath went below the ground. The yawn-stretch barely moved. The ball and butterfly were small, and the batting paw hardly moved. | (first render) |
+| 2 | Fixed: the puff is pale blue and shoots out to the side; the bubble is twice the size; she is lifted during the roll; a deeper stretch and a wider yawn; bigger props and a bigger swipe. Checked the cape, helmet, and bat follow in every strip. | sneeze, dream, rollOver, yawnStretch, ballBat, butterfly |
+
+**To add a moment:** add an entry to `IDLE` in `moments.ts`, render the
+strips, and look. The tests pick it up by themselves.
+
+**To see one on the phone:** Settings → Companion Gallery → Moments. Tap a
+name and the dog in the matching state plays it.
+
 ## How to change her
 
 - **A color:** `palette.ts`, then `npm run render:companion` and look.

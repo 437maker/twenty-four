@@ -39,6 +39,16 @@ import {
   pickContent, pushToHistory, parseHistory, getContentById,
 } from '../utils/delivery';
 import type { DeliveryProgress } from '../utils/delivery';
+import type { ReactionId } from '../components/companion/moments';
+
+// How long away counts as "she missed you".
+export const MISSED_YOU_MS = 24 * 60 * 60 * 1000;
+
+// When two things happen before Home is next seen, the bigger one is shown.
+const REACTION_RANK: Record<ReactionId, number> = {
+  taskDone: 1, sleepyYawn: 1, journalNuzzle: 2, missedYou: 3,
+  milestone7: 4, milestone30: 4, milestone100: 4,
+};
 
 // Date keys ("YYYY-MM-DD") must be the phone's LOCAL calendar day.
 // The old code cut the date out of toISOString(), which is UTC: in Boston
@@ -104,6 +114,13 @@ interface AppState {
   // resets its rest state to outside/awake. REMOVE BEFORE APP STORE RELEASE.
   restResetToken: number;
   resetRestState: () => void;
+
+  // Lively run: something the dog should react to the next time she is on
+  // screen (a task ticked off, a journal entry saved, a long time away).
+  pendingReaction: { id: ReactionId; n: number } | null;
+  queueReaction: (id: ReactionId) => void;
+  clearReaction: (n: number) => void;
+  noteAppOpen: (now?: Date) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -119,6 +136,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   restResetToken:     0,
   pendingDeliveries:  [],
   deliveryProgress:   null,
+  pendingReaction:    null,
+
+  queueReaction: (id) =>
+    set((s) => {
+      const waiting = s.pendingReaction;
+      if (waiting && REACTION_RANK[waiting.id] > REACTION_RANK[id]) return {};
+      return { pendingReaction: { id, n: (waiting?.n ?? 0) + 1 + Math.floor(Math.random() * 1e6) } };
+    }),
+  clearReaction: (n) => set((s) => (s.pendingReaction?.n === n ? { pendingReaction: null } : {})),
+
+  // Called once on launch. If the last open was a day or more ago, she runs
+  // up to say hello. Then the time of this open is stored.
+  noteAppOpen: async (now = new Date()) => {
+    const settings = await getSettings();
+    if (!settings) return;
+    const last = settings.last_opened_at ? new Date(settings.last_opened_at).getTime() : NaN;
+    if (settings.onboarded && Number.isFinite(last) && now.getTime() - last >= MISSED_YOU_MS) {
+      get().queueReaction('missedYou');
+    }
+    const stamp = now.toISOString();
+    await saveSettings({ last_opened_at: stamp });
+    set((s) => ({ settings: s.settings ? { ...s.settings, last_opened_at: stamp } : null }));
+  },
 
   loadSettings: async () => {
     const settings = await getSettings();
@@ -203,6 +243,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       isSyncing:          false,
       pendingDeliveries:  [],
       deliveryProgress:   null,
+      pendingReaction:    null,
     });
     // Same step App.tsx runs on a real first launch: stamps app_start_date
     // and last_active_date so the new streak starts counting from today.

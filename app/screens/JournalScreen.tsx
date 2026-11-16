@@ -205,6 +205,9 @@ export default function JournalScreen() {
         word_count:       wordCount,
       });
 
+      // The dog trots over and nuzzles the next time Home is on screen.
+      useAppStore.getState().queueReaction('journalNuzzle');
+
       // 4. Increment the global reflection counter and get the new total
       const newCount = await incrementReflectionCount();
 

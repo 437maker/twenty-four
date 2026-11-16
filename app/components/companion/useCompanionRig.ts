@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Easing,
+  cancelAnimation,
   useDerivedValue,
   useSharedValue,
   withDelay,
@@ -33,6 +34,8 @@ import {
 import type { DerivedValue, SharedValue } from 'react-native-reanimated';
 
 import type { NovaState } from '../../types';
+import { PROP_KINDS, sampleTrack } from './moments';
+import type { Moment, Tracks } from './moments';
 import { POSES } from './poses';
 import type { Pose } from './poses';
 
@@ -115,6 +118,12 @@ export interface CompanionRig {
   sparks: SharedValue<number>;  // 0..1 looping progress of the celebration sparkles
   zzz: SharedValue<number>;     // 0..1 looping progress of the sleeping "z"s
   fx: SharedValue<number>;      // 0..1 looping progress for item effects (0 when still)
+  // A moment (moments.ts) playing on top of the state:
+  moment: SharedValue<Tracks | null>;  // its tracks, or null when nothing is playing
+  momentT: SharedValue<number>;        // 0..1, how far through it she is
+  momentProp: SharedValue<number>;     // which prop it shows: 0 = none, else 1 + its place in PROP_KINDS
+  playMoment: (m: Moment) => void;
+  stopMoment: () => void;
   tap: () => void;
   petStart: () => void;
   petMove: (side: number) => void; // -1 = finger at her left edge, +1 = right edge
@@ -156,30 +165,66 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn, hasFx = fa
   const zzz = useSharedValue(0);
   const fx = useSharedValue(0);
 
+  // ── A moment layered on top (see moments.ts) ──
+  const moment = useSharedValue<Tracks | null>(null);
+  const momentT = useSharedValue(0);
+  const momentProp = useSharedValue(0);
+  const calm = useSharedValue(0);     // 0..1: how far the state's own loops are hushed while a moment plays
+
   // Key pose + offsets, computed on the UI thread every frame.
   const pose = useDerivedValue<Pose>(() => {
     const a = from.value;
     const b = to.value;
     const m = mix.value;
-    const sq = squash.value + tapSquash.value;
+    const mo = moment.value;
+    const mt = momentT.value;
+    const loud = 1 - calm.value; // the state's hops and wags step aside for a moment
+    const sq = squash.value * loud + tapSquash.value;
     const br = breath.value;
-    return {
-      hop: a.hop + (b.hop - a.hop) * m + hop.value,
-      spin: a.spin + (b.spin - a.spin) * m + spin.value + tapSpin.value,
+    const p: Pose = {
+      hop: a.hop + (b.hop - a.hop) * m + hop.value * loud,
+      spin: a.spin + (b.spin - a.spin) * m + spin.value * loud + tapSpin.value,
       bodySx: a.bodySx + (b.bodySx - a.bodySx) * m - sq * 0.7 - br * 0.012,
       bodySy: a.bodySy + (b.bodySy - a.bodySy) * m + sq + br * 0.025,
       headDx: a.headDx + (b.headDx - a.headDx) * m,
       headDy: a.headDy + (b.headDy - a.headDy) * m,
-      headRot: a.headRot + (b.headRot - a.headRot) * m + tilt.value + lean.value,
-      earL: a.earL + (b.earL - a.earL) * m + earL.value,
-      earR: a.earR + (b.earR - a.earR) * m + earR.value,
-      tail: a.tail + (b.tail - a.tail) * m + wag.value + petWag.value,
-      knot: a.knot + (b.knot - a.knot) * m + knot.value,
-      lid: Math.min(1, a.lid + (b.lid - a.lid) * m + blink.value),
+      headRot: a.headRot + (b.headRot - a.headRot) * m + tilt.value * loud + lean.value,
+      earL: a.earL + (b.earL - a.earL) * m + earL.value * loud,
+      earR: a.earR + (b.earR - a.earR) * m + earR.value * loud,
+      tail: a.tail + (b.tail - a.tail) * m + wag.value * loud + petWag.value,
+      knot: a.knot + (b.knot - a.knot) * m + knot.value * loud,
+      lid: a.lid + (b.lid - a.lid) * m + blink.value,
       happyEyes: Math.max(a.happyEyes + (b.happyEyes - a.happyEyes) * m, pet.value),
       mouthOpen: a.mouthOpen + (b.mouthOpen - a.mouthOpen) * m,
       pawSpread: a.pawSpread + (b.pawSpread - a.pawSpread) * m,
+      dx: 0, turn: 0, zoom: 0, pawLDx: 0, pawLDy: 0, pawRDx: 0, pawRDy: 0,
     };
+    if (mo) {
+      p.hop += sampleTrack(mo.hop, mt);
+      p.spin += sampleTrack(mo.spin, mt);
+      p.bodySx += sampleTrack(mo.bodySx, mt);
+      p.bodySy += sampleTrack(mo.bodySy, mt);
+      p.headDx += sampleTrack(mo.headDx, mt);
+      p.headDy += sampleTrack(mo.headDy, mt);
+      p.headRot += sampleTrack(mo.headRot, mt);
+      p.earL += sampleTrack(mo.earL, mt);
+      p.earR += sampleTrack(mo.earR, mt);
+      p.tail += sampleTrack(mo.tail, mt);
+      p.knot += sampleTrack(mo.knot, mt);
+      p.lid += sampleTrack(mo.lid, mt);
+      p.happyEyes = Math.max(0, Math.min(1, p.happyEyes + sampleTrack(mo.happyEyes, mt)));
+      p.mouthOpen = Math.max(0, p.mouthOpen + sampleTrack(mo.mouthOpen, mt));
+      p.pawSpread += sampleTrack(mo.pawSpread, mt);
+      p.dx = sampleTrack(mo.dx, mt);
+      p.turn = sampleTrack(mo.turn, mt);
+      p.zoom = sampleTrack(mo.zoom, mt);
+      p.pawLDx = sampleTrack(mo.pawLDx, mt);
+      p.pawLDy = sampleTrack(mo.pawLDy, mt);
+      p.pawRDx = sampleTrack(mo.pawRDx, mt);
+      p.pawRDy = sampleTrack(mo.pawRDy, mt);
+    }
+    p.lid = Math.max(0, Math.min(1, p.lid));
+    return p;
   });
 
   // Latest props for callbacks that should not be rebuilt on every change.
@@ -328,6 +373,38 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn, hasFx = fa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, reduceMotion, paused, hasFx]);
 
+  // ── Moments ──
+  // Starting a moment is three assignments from JavaScript; every frame of
+  // it is then computed on the UI thread inside `pose` above.
+  const stopMoment = useCallback(() => {
+    cancelAnimation(momentT);
+    moment.value = null;
+    momentProp.value = 0;
+    momentT.value = 0;
+    calm.value = withTiming(0, { duration: 250, easing: sine });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const playMoment = useCallback((m: Moment) => {
+    cancelAnimation(momentT);
+    momentT.value = 0;
+    moment.value = m.tracks;
+    momentProp.value = m.prop ? PROP_KINDS.indexOf(m.prop) + 1 : 0;
+    calm.value = withTiming(1, { duration: 160, easing: sine });
+    momentT.value = withTiming(1, { duration: m.ms, easing: Easing.linear }, (finished) => {
+      if (!finished) return;
+      moment.value = null;
+      momentProp.value = 0;
+      calm.value = withTiming(0, { duration: 320, easing: sine });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Leaving the screen, or a change of state, ends a moment at once: its
+  // tracks were written for the pose she was in.
+  useEffect(() => {
+    return stopMoment;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, paused]);
+
   // ── Tap: squash, pop back with an overshoot, wiggle, and a heart ──
   const tap = useCallback(() => {
     heart.value = 0;
@@ -364,7 +441,11 @@ export function useCompanionRig({ state, reduceMotion, paused, hatOn, hasFx = fa
   }, []);
 
   return useMemo(
-    () => ({ pose, fade, hat, heart, sparks, zzz, fx, tap, petStart, petMove, petEnd }),
+    () => ({
+      pose, fade, hat, heart, sparks, zzz, fx,
+      moment, momentT, momentProp, playMoment, stopMoment,
+      tap, petStart, petMove, petEnd,
+    }),
     // Shared values and callbacks are stable for the life of the component.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],

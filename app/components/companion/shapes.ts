@@ -97,6 +97,42 @@ export function sparkle(color: string, x = 0, y = 0, scale = 1): Shape[] {
   return [path(d, { fill: color })];
 }
 
+// ─── Props for the idle moments (moments.ts), drawn around 0,0 like the effects ──
+// A butterfly, seen from the side of its flight: two pairs of wings and a body.
+export const BUTTERFLY: Shape[] = [
+  path('M 0 -1 C -4 -11 -11 -9 -10 -3 C -9.5 1 -4 1 0 0 Z', { fill: '#F6A6C1', stroke: '#C2507A', sw: 1 }),
+  path('M 0 -1 C 4 -11 11 -9 10 -3 C 9.5 1 4 1 0 0 Z', { fill: '#F6A6C1', stroke: '#C2507A', sw: 1 }),
+  path('M 0 0 C -4 0 -8 3 -6 7 C -4 9 -1 5 0 1 Z', { fill: '#FBD38D', stroke: '#C2507A', sw: 1 }),
+  path('M 0 0 C 4 0 8 3 6 7 C 4 9 1 5 0 1 Z', { fill: '#FBD38D', stroke: '#C2507A', sw: 1 }),
+  line('M 0 -4 L 0 6', '#5B3A29', 1.8),
+];
+
+// A small rubber ball with a stripe and a highlight.
+export const BALL: Shape[] = [
+  circle(0, 0, 7.5, { fill: '#EF6B5A', stroke: '#B8433A', sw: 1.2 }),
+  line('M -7 -1.5 C -3 1.5 3 1.5 7 -1.5', '#FFE9A8', 2),
+  circle(-2.6, -3.4, 1.6, { fill: '#FFFFFF', op: 0.7 }),
+];
+
+// The puff of a sneeze: three soft blobs.
+export const PUFF: Shape[] = [
+  circle(-4, 0, 3.4, { fill: '#EAF2FB', stroke: '#8FA6CC', sw: 0.9 }),
+  circle(3, -1.5, 4, { fill: '#EAF2FB', stroke: '#8FA6CC', sw: 0.9 }),
+  circle(0.5, 3, 2.6, { fill: '#EAF2FB', stroke: '#8FA6CC', sw: 0.9 }),
+];
+
+// A dream: a thought bubble with a bone in it, and two small bubbles below.
+export const DREAM: Shape[] = [
+  circle(7.5, 9.5, 1.3, { fill: '#FFFFFF', stroke: '#8FA6CC', sw: 0.8 }),
+  circle(5, 6.6, 2, { fill: '#FFFFFF', stroke: '#8FA6CC', sw: 0.8 }),
+  ellipse(-1, -2.5, 10, 7.6, { fill: '#FFFFFF', stroke: '#8FA6CC', sw: 1 }),
+  line('M -5 -2.5 L 3 -2.5', '#D9A066', 2.6),
+  circle(-5.6, -4, 1.7, { fill: '#D9A066' }),
+  circle(-5.6, -1, 1.7, { fill: '#D9A066' }),
+  circle(3.6, -4, 1.7, { fill: '#D9A066' }),
+  circle(3.6, -1, 1.7, { fill: '#D9A066' }),
+];
+
 // ─── Placing shapes at an anchor ──────────────────────────────────────────────
 // Items are drawn around (0, 0). placeShapes() moves, scales, and rotates
 // them to an anchor and returns ordinary shapes in drawing-box coordinates.
