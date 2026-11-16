@@ -17,6 +17,21 @@ export function thump(): void {
   }
 }
 
+// The faint tick of a picker wheel passing a row. iOS has a haptic made for
+// exactly this ("selection"); if it is missing, a light tap stands in.
+export function selectionTick(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Haptics = require('expo-haptics');
+    const done = typeof Haptics.selectionAsync === 'function'
+      ? Haptics.selectionAsync()
+      : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (done && typeof done.catch === 'function') done.catch(() => {});
+  } catch {
+    // No haptics available. Nothing to do.
+  }
+}
+
 export function lightTap(): void {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires

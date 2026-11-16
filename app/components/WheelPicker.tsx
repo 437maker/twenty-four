@@ -1,112 +1,220 @@
-// WheelPicker.tsx — A bounded vertical scroll picker.
+// WheelPicker.tsx — a vertical wheel for picking one value from a list.
 //
-// Fixes applied (Sprint 2 bug-fix pass):
-//   • bounces={false} + overScrollMode="never" — scroll stops at first/last item,
-//     no infinite looping, no over-scroll bounce.
-//   • Per-item solid background — selected row has a SOLID purple (#3C3489)
-//     background with white text. Previous version used a sibling absolute View
-//     that was hidden behind the ScrollView. Now each item styles itself directly.
-//   • Single source of scrollTo — only the useEffect moves the scroll position
-//     programmatically, never the onPress handler. This prevents two competing
-//     animations from locking the picker after a tap.
-//   • draggingRef — prevents a programmatic scrollTo from fighting a live drag.
+// How it stays smooth
+// -------------------
+// The old wheel felt laggy on iPhone because it did work in JavaScript while
+// the finger was moving: the highlighted row was React state, so every row
+// re-rendered as the wheel turned, and JavaScript also issued its own
+// scrollTo commands that fought the native snap.
+//
+// This one does nothing in JavaScript while it turns:
+//   • The scroll position lives in a Reanimated shared value, written by a
+//     scroll handler that runs on the UI thread.
+//   • Each row scales, fades, and changes color from that value, also on the
+//     UI thread (the way the iOS wheel does). No row re-renders.
+//   • The native scroll view does the snapping (snapToInterval).
+//   • React hears about it once, when the wheel has settled: onChange fires
+//     when the momentum ends (or the finger lifts with no fling), never per
+//     scroll event.
+//   • A light haptic tick fires when the row under the highlight changes:
+//     decided on the UI thread, once per row, at most one every 45 ms.
 
-import React, { useRef, useEffect } from 'react';
-import {
-  ScrollView,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native';
-// React Native 0.87+ types: a ref to a ScrollView holds a ScrollViewInstance,
-// not the ScrollView component type itself.
-import type { ScrollViewInstance } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  interpolateColor,
+  runOnJS,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 
-// Height of one row in pixels — also the snap interval.
-const ITEM_H = 52;
+import { selectionTick } from './companion/haptics';
 
-// We show 3 rows at a time: the item above, the selected item, the item below.
-const VISIBLE  = 3;
-const PICKER_H = ITEM_H * VISIBLE; // 156 px total height
+// Height of one row in pixels. Also the snap interval.
+export const ITEM_H = 52;
+// Three rows show: the one above, the chosen one, the one below.
+const VISIBLE = 3;
+const PICKER_H = ITEM_H * VISIBLE;
+// The shortest time between two haptic ticks. A hard fling passes a row every
+// few milliseconds; ticking for each would be a buzz, not a tick.
+export const TICK_MIN_MS = 45;
+// After the finger lifts, how long to wait for a fling to start before
+// treating the lift as the end of the scroll.
+export const SETTLE_WAIT_MS = 60;
+// Rows far outside the window are detached from the view tree by the scroll
+// view. Only worth it for a long wheel (the 48 durations). Set to a large
+// number to turn it off.
+const CLIP_FROM_ROWS = 13;
 
-interface Props {
-  items:         string[];   // display labels, e.g. ["1","2",…"12"]
-  selectedIndex: number;     // which index is currently selected
-  onChange:      (index: number) => void;
-  width?:        number;     // column width in pixels (default 80)
-  // What this wheel picks, read by screen readers, e.g. "Hour".
-  accessibilityLabel?: string;
+const PURPLE = '#3C3489';
+const INK = '#333333';
+const WHITE = '#FFFFFF';
+
+// Which row is under the highlight at scroll offset `y`.
+export function indexForOffset(y: number, count: number): number {
+  'worklet';
+  return Math.max(0, Math.min(count - 1, Math.round(y / ITEM_H)));
 }
 
+// Should a haptic tick fire? Once when the highlighted row changes, and not
+// within TICK_MIN_MS of the last one.
+export function shouldTick(prevIndex: number, nextIndex: number, lastTickAt: number, now: number): boolean {
+  'worklet';
+  return nextIndex !== prevIndex && now - lastTickAt >= TICK_MIN_MS;
+}
+
+interface Props {
+  items: readonly string[];   // labels, e.g. ["1", "2", … "12"]
+  selectedIndex: number;      // the chosen row
+  onChange: (index: number) => void; // called once the wheel has settled on a new row
+  width?: number;             // column width in pixels (default 80)
+  // What this wheel picks, read by screen readers, e.g. "Hour".
+  accessibilityLabel?: string;
+  testID?: string;
+}
+
+// One row. Memoized: it renders once, and after that only its animated style
+// changes, on the UI thread.
+const WheelRow = React.memo(function WheelRow({
+  label, index, y, onPress,
+}: {
+  label: string; index: number; y: SharedValue<number>; onPress: (index: number) => void;
+}) {
+  const boxStyle = useAnimatedStyle(() => {
+    const d = Math.abs(y.value / ITEM_H - index); // rows away from the highlight
+    return {
+      opacity: interpolate(d, [0, 1, 2], [1, 0.5, 0.25], Extrapolation.CLAMP),
+      transform: [{ scale: interpolate(d, [0, 1, 2], [1.1, 0.9, 0.78], Extrapolation.CLAMP) }],
+    };
+  });
+  const textStyle = useAnimatedStyle(() => {
+    const d = Math.abs(y.value / ITEM_H - index);
+    return { color: interpolateColor(Math.min(d, 0.6), [0, 0.6], [WHITE, INK]) };
+  });
+  return (
+    <Pressable style={styles.item} onPress={() => onPress(index)} accessible={false}>
+      <Animated.View style={boxStyle}>
+        <Animated.Text style={[styles.itemText, textStyle]}>{label}</Animated.Text>
+      </Animated.View>
+    </Pressable>
+  );
+});
+
 export default function WheelPicker({
-  items, selectedIndex, onChange, width = 80, accessibilityLabel,
+  items, selectedIndex, onChange, width = 80, accessibilityLabel, testID,
 }: Props) {
-  const scrollRef  = useRef<ScrollViewInstance>(null);
+  const count = items.length;
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
-  // draggingRef  — true while the user's finger is physically touching the picker.
-  // momentumRef  — true while a fling is decelerating after the finger lifts.
-  // Both must be false before we allow a programmatic scrollTo from useEffect,
-  // otherwise the programmatic scroll fights the live gesture and causes the
-  // oscillating / locked state on fast flings.
-  const draggingRef  = useRef(false);
-  const momentumRef  = useRef(false);
+  // ── UI-thread state ──
+  const y = useSharedValue(selectedIndex * ITEM_H); // scroll offset
+  const highlight = useSharedValue(selectedIndex);  // row under the highlight
+  const touching = useSharedValue(0);               // 1 while the user is turning the wheel
+  const lastTickAt = useSharedValue(0);
 
-  // ── Programmatic scroll ───────────────────────────────────────────────────────
-  // Runs whenever selectedIndex changes from outside (e.g. pre-filling the edit
-  // form with an existing task's start time).
-  // Guarded by BOTH refs — if a drag or momentum scroll is active we skip it
-  // entirely to avoid competing scroll commands.
+  // ── JS-thread state (refs: none of it re-renders anything) ──
+  const dragging = useRef(false);
+  const momentum = useRef(false);
+  const settledIndex = useRef(selectedIndex); // the row the wheel is resting on
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef({ onChange, selectedIndex, count });
+  latest.current = { onChange, selectedIndex, count };
+
+  // Runs on the UI thread for every scroll event. Never touches React.
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      y.value = e.contentOffset.y;
+      const next = indexForOffset(e.contentOffset.y, count);
+      if (next === highlight.value) return;
+      const now = Date.now();
+      if (touching.value === 1 && shouldTick(highlight.value, next, lastTickAt.value, now)) {
+        lastTickAt.value = now;
+        runOnJS(selectionTick)();
+      }
+      highlight.value = next;
+    },
+  });
+
+  // The wheel has come to rest: tell React, once.
+  const settle = useCallback((offsetY: number) => {
+    dragging.current = false;
+    momentum.current = false;
+    touching.value = 0;
+    const index = indexForOffset(offsetY, latest.current.count);
+    settledIndex.current = index;
+    if (index !== latest.current.selectedIndex) latest.current.onChange(index);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const clearSettleTimer = () => {
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+  };
+  useEffect(() => clearSettleTimer, []);
+
+  const handleBeginDrag = useCallback(() => {
+    clearSettleTimer();
+    dragging.current = true;
+    momentum.current = false;
+    touching.value = 1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const handleEndDrag = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // The finger lifted. A fling may follow (then the momentum events take
+    // over) or not (then this was the end). Wait a moment to find out.
+    dragging.current = false;
+    const offsetY = e.nativeEvent.contentOffset.y;
+    clearSettleTimer();
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      if (!momentum.current && !dragging.current) settle(offsetY);
+    }, SETTLE_WAIT_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settle]);
+  const handleMomentumBegin = useCallback(() => {
+    momentum.current = true;
+    clearSettleTimer();
+  }, []);
+  const handleMomentumEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    clearSettleTimer();
+    settle(e.nativeEvent.contentOffset.y);
+  }, [settle]);
+
+  // A new value from outside (a chip, a typed time, opening the form on an
+  // existing task): turn the wheel to it. Skipped while the user is turning
+  // it, and when the wheel is already there (the user just put it there).
+  const first = useRef(true);
   useEffect(() => {
-    if (!draggingRef.current && !momentumRef.current) {
-      const t = setTimeout(() => {
-        scrollRef.current?.scrollTo({ y: selectedIndex * ITEM_H, animated: false });
-      }, 20);
-      return () => clearTimeout(t);
-    }
+    const mounting = first.current;
+    first.current = false;
+    if (dragging.current || momentum.current) return undefined;
+    if (!mounting && settledIndex.current === selectedIndex) return undefined;
+    settledIndex.current = selectedIndex;
+    if (mounting) y.value = selectedIndex * ITEM_H;
+    const id = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: selectedIndex * ITEM_H, animated: !mounting });
+    }, mounting ? 20 : 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIndex]);
 
-  // ── Shared snap helper ────────────────────────────────────────────────────────
-  function snapToNearest(y: number) {
-    const index = Math.max(0, Math.min(Math.round(y / ITEM_H), items.length - 1));
-    scrollRef.current?.scrollTo({ y: index * ITEM_H, animated: false });
-    onChange(index);
-  }
+  // Tapping a row picks it.
+  const pressRow = useCallback((index: number) => {
+    if (index !== latest.current.selectedIndex) latest.current.onChange(index);
+  }, []);
 
-  // ── Scroll event handlers ─────────────────────────────────────────────────────
-  function handleScrollBeginDrag() {
-    draggingRef.current  = true;
-    momentumRef.current  = false;
-  }
+  const rows = useMemo(
+    () => items.map((label, i) => <WheelRow key={i} label={label} index={i} y={y} onPress={pressRow} />),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, pressRow],
+  );
 
-  function handleMomentumScrollBegin() {
-    // Finger has already lifted (onScrollEndDrag fired first) but a fling is
-    // now decelerating — mark momentum active so we know NOT to snap yet.
-    momentumRef.current = true;
-  }
-
-  function handleScrollEndDrag(e: any) {
-    // Finger lifted. We don't know yet whether momentum will follow.
-    // onMomentumScrollBegin fires in the same JS event flush (or very next tick),
-    // so a 50 ms defer is plenty of time to detect it.
-    draggingRef.current = false;
-    const y = e.nativeEvent.contentOffset.y;
-    setTimeout(() => {
-      // If momentum started in the meantime, leave snapping to handleMomentumScrollEnd.
-      if (!momentumRef.current) {
-        snapToNearest(y);
-      }
-    }, 50);
-  }
-
-  function handleMomentumScrollEnd(e: any) {
-    // Fling has fully decelerated — safe to snap now.
-    momentumRef.current = false;
-    draggingRef.current = false;
-    snapToNearest(e.nativeEvent.contentOffset.y);
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────────
   // Screen readers see the whole wheel as ONE "adjustable" control (like a
   // native picker): it announces "Hour, 9, adjustable" and the user swipes up
   // or down to change it, instead of stepping through every row.
@@ -120,96 +228,58 @@ export default function WheelPicker({
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={(event) => {
         const step = event.nativeEvent.actionName === 'increment' ? 1 : -1;
-        const next = Math.max(0, Math.min(items.length - 1, selectedIndex + step));
+        const next = Math.max(0, Math.min(count - 1, selectedIndex + step));
         if (next !== selectedIndex) onChange(next);
       }}
     >
-      <ScrollView
+      {/* The highlight: a fixed purple band behind the middle row. The rows
+          slide over it; it never moves, so nothing has to re-render. */}
+      <View pointerEvents="none" style={styles.band} />
+      <Animated.ScrollView
         ref={scrollRef}
+        testID={testID}
         showsVerticalScrollIndicator={false}
-
-        // Snap so the scroll always lands on a full item, not halfway between
+        // The native scroll view snaps to whole rows by itself.
         snapToInterval={ITEM_H}
         decelerationRate="fast"
-
-        // ── The two key fixes for infinite scroll ──
-        bounces={false}          // iOS:     prevents rubber-band over-scroll past ends
-        overScrollMode="never"   // Android: prevents glow/stretch over-scroll past ends
-
-        onScrollBeginDrag={handleScrollBeginDrag}
-        onMomentumScrollBegin={handleMomentumScrollBegin}  // fling started
-        onScrollEndDrag={handleScrollEndDrag}              // finger lifted
-        onMomentumScrollEnd={handleMomentumScrollEnd}      // fling fully stopped
-
-        // paddingVertical: ITEM_H lets the first and last items scroll into the
-        // centre slot.  With padding = 52px:
-        //   • scroll offset 0          → item 0 is centred
-        //   • scroll offset i * 52     → item i is centred
-        //   • max offset (n-1) * 52    → last item is centred, can't scroll further
-        contentContainerStyle={{ paddingVertical: ITEM_H }}
-        style={{ height: PICKER_H }}
+        // Stop at the first and last row: no rubber band, no glow.
+        bounces={false}
+        overScrollMode="never"
+        nestedScrollEnabled
+        scrollEventThrottle={16}
+        removeClippedSubviews={count >= CLIP_FROM_ROWS}
+        contentOffset={{ x: 0, y: selectedIndex * ITEM_H }}
+        onScroll={onScroll}
+        onScrollBeginDrag={handleBeginDrag}
+        onScrollEndDrag={handleEndDrag}
+        onMomentumScrollBegin={handleMomentumBegin}
+        onMomentumScrollEnd={handleMomentumEnd}
+        // One row of padding above and below lets the first and last rows
+        // reach the middle: offset i * ITEM_H puts row i under the highlight.
+        contentContainerStyle={styles.content}
+        style={styles.scroll}
       >
-        {items.map((label, i) => {
-          const isSelected = i === selectedIndex;
-          return (
-            // Tapping an item navigates directly to it.
-            // We call onChange first (updates parent state → new selectedIndex prop
-            // → useEffect scrolls to it).  We do NOT call scrollTo here to avoid
-            // two competing scroll commands.
-            <TouchableOpacity
-              key={i}
-              style={[
-                styles.item,
-                isSelected && styles.itemSelected,  // solid purple when selected
-              ]}
-              onPress={() => onChange(i)}
-              activeOpacity={0.75}
-            >
-              <Text style={[
-                styles.itemText,
-                isSelected && styles.itemTextSelected,  // white text on purple
-              ]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+        {rows}
+      </Animated.ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    overflow:        'hidden',
-    borderRadius:    12,
-    backgroundColor: '#FFFFFF',
-    borderWidth:     1,
-    borderColor:     '#E5E7EB',
+    height: PICKER_H,
+    overflow: 'hidden',
+    borderRadius: 12,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  item: {
-    height:          ITEM_H,
-    alignItems:      'center',
-    justifyContent:  'center',
-    // Every unselected row has an explicit WHITE background.
-    // This is important — without it, the View is transparent and whatever is
-    // behind it (e.g. the modal background) bleeds through.
-    backgroundColor: '#FFFFFF',
+  band: {
+    position: 'absolute', left: 0, right: 0, top: ITEM_H, height: ITEM_H,
+    backgroundColor: PURPLE,
   },
-  // ── SELECTED ROW: solid purple fill + white text ──────────────────────────
-  // Using a solid background here (not an overlay or opacity trick) guarantees
-  // the purple is visible regardless of what's behind the ScrollView.
-  itemSelected: {
-    backgroundColor: '#3C3489',
-  },
-  itemText: {
-    fontSize:   20,
-    color:      '#333333',   // dark text on white background
-    fontWeight: '500',
-  },
-  itemTextSelected: {
-    fontSize:   22,
-    color:      '#FFFFFF',   // white text on purple background
-    fontWeight: '700',
-  },
+  scroll: { height: PICKER_H },
+  content: { paddingVertical: ITEM_H },
+  item: { height: ITEM_H, alignItems: 'center', justifyContent: 'center' },
+  itemText: { fontSize: 20, fontWeight: '600', color: INK },
 });

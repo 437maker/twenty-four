@@ -859,3 +859,45 @@ Each entry says what was decided, why, and how to reverse it.
   play one moment to the end. Every point of every moment on every breed is
   checked without rendering, through `momentPose()` and `partTransform()`.
 
+### D79. The wheel does nothing in JavaScript while it turns
+- **Cause of the lag (found by reading the code, not by profiling on a
+  phone):** the highlighted row was React state, so all rows re-rendered as
+  the wheel moved, and JavaScript sent its own `scrollTo` after every scroll
+  to snap, which fought the native snap.
+- **Now:** a Reanimated `Animated.ScrollView` with `snapToInterval`. The
+  scroll offset is a shared value written on the UI thread. Rows scale, fade
+  and change color from it on the UI thread. The purple highlight is a fixed
+  band behind the rows. `onChange` fires once, when the momentum ends, or 60
+  ms after the finger lifts if no fling follows.
+- **Scroll view, not FlatList.** The spec allowed either. The form is already
+  a vertical ScrollView, and a FlatList inside one logs React Native's
+  "VirtualizedLists should never be nested" warning. The longest wheel has 48
+  small rows, each rendered once. `getItemLayout` is a FlatList prop and does
+  not apply.
+- **`removeClippedSubviews`** is on for the duration wheel only (13 rows or
+  more). If rows ever show blank after a jump, set `CLIP_FROM_ROWS` in
+  `WheelPicker.tsx` to a large number.
+- **Haptic:** `Haptics.selectionAsync()` (the iOS picker tick), decided on
+  the UI thread, once per row, at most one every 45 ms, and only while the
+  user is turning the wheel (not when a chip moves it).
+- **Reverse:** `git checkout 8678eeb -- app/components/WheelPicker.tsx` (the
+  old props still fit; `testID` is ignored).
+
+### D80. Faster ways to set a time
+- **Quarter-hour steps are kept.** The minute wheel has 00, 15, 30, 45. A
+  typed "9:10" becomes 9:15, and "Now" is the nearest quarter hour. Finer
+  steps would change how tasks are stored and how conflicts are found.
+- **"+15m", "+30m", "+1h" push the time shown in the form later.** They are
+  not "from now". "Now" then "+30m" gives half an hour from now, and a chip
+  can be tapped twice. Past 11:45 PM they wrap to the small hours of the same
+  date; the form's date does not change.
+- **A typed 1 to 12 with no "a" or "p" follows the AM/PM wheel.** "9" while
+  the form says PM is 9 PM. "13" to "23" and "0" are always 24-hour times.
+- **Last used duration per pillar** is stored in `settings.last_durations`
+  (JSON). It fills in when a new task is started and when the pillar is
+  changed, until the duration is set by hand. Editing a task never changes
+  its duration this way. Saving any task records its duration for its pillar.
+- **Where the new picker is used:** the task form on Schedule, the only place
+  `WheelPicker` was used. The notification times in Onboarding and Settings
+  use the native iOS time picker and were left as they are.
+

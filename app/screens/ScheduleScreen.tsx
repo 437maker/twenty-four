@@ -26,7 +26,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppStore } from '../store/useAppStore';
 import TaskCard from '../components/TaskCard';
 import PillarSelector from '../components/PillarSelector';
-import WheelPicker from '../components/WheelPicker';
+import { DurationField, StartTimeField } from '../components/TimeFields';
+import { durationForPillar, rememberDuration, snapDuration, snapTime, timeOfDate } from '../utils/timeInput';
 import {
   getTasksForDate,
   createTask,
@@ -43,29 +44,6 @@ import { getTodayString, formatDisplayDate } from '../utils/dateHelpers';
 import { calculateNewStreak, isStreakMilestone } from '../utils/calculations';
 import SettingsScreen from './SettingsScreen';
 
-// ─── Wheel data ───────────────────────────────────────────────────────────────
-const HOURS    = ['1','2','3','4','5','6','7','8','9','10','11','12'];
-const MINUTES  = ['00','15','30','45'];   // quarter-hour steps
-const AMPM     = ['AM', 'PM'];
-// Duration values in hours: 0.25, 0.50, 0.75 … 12.00  (48 steps of 0.25 h)
-const DURATION_VALUES: number[] = Array.from(
-  { length: 48 },
-  (_, i) => parseFloat(((i + 1) * 0.25).toFixed(2))
-);
-
-// Human-readable label for each duration value:
-//   0.25 → "15 min"   0.5 → "30 min"   0.75 → "45 min"
-//   1.0  → "1 hr"     1.25 → "1 hr 15 min"   2.0 → "2 hr"  etc.
-function formatDurationLabel(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  if (h === 0)  return `${m} min`;
-  if (m === 0)  return `${h} hr`;
-  return `${h} hr ${m} min`;
-}
-
-const DURATIONS: string[] = DURATION_VALUES.map(formatDurationLabel);
-
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: 'none',     label: 'None'     },
   { value: 'daily',    label: 'Daily'    },
@@ -77,30 +55,6 @@ const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 // Full names for screen readers ("Su" would be read as "soo").
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// ─── Conversion helpers ───────────────────────────────────────────────────────
-function timeToIndices(time: string) {
-  const [h, m]  = time.split(':').map(Number);
-  const ampmIdx = h >= 12 ? 1 : 0;
-  const hour12  = h % 12 || 12;
-  const hourIdx = hour12 - 1;
-  // Snap minute to nearest quarter
-  const minSnapped = Math.round(m / 15) % 4;
-  return { hourIdx, minIdx: minSnapped, ampmIdx };
-}
-
-function indicesToTime(hourIdx: number, minIdx: number, ampmIdx: number): string {
-  const hour12 = hourIdx + 1;
-  const h      = ampmIdx === 0
-    ? (hour12 === 12 ? 0 : hour12)
-    : (hour12 === 12 ? 12 : hour12 + 12);
-  return `${h.toString().padStart(2, '0')}:${MINUTES[minIdx]}`;
-}
-
-// Map a numeric hours value → index in DURATION_VALUES (0.25-step, 48 items)
-function durationToIdx(hours: number): number {
-  return Math.max(0, Math.min(47, Math.round(hours / 0.25) - 1));
-}
 
 // ─── MoveDayStrip ─────────────────────────────────────────────────────────────
 // Horizontal row of day chips. Tap any chip to instantly move the task there.
@@ -380,10 +334,11 @@ export default function ScheduleScreen() {
 
   const [formName, setFormName]         = useState('');
   const [formPillar, setFormPillar]     = useState<Pillar>('work');
-  const [formHourIdx, setFormHourIdx]   = useState(8);
-  const [formMinIdx, setFormMinIdx]     = useState(0);
-  const [formAmPmIdx, setFormAmPmIdx]   = useState(0);
-  const [formDurIdx, setFormDurIdx]     = useState(1);
+  const [formStart, setFormStart]       = useState('09:00');  // "HH:MM", always on a quarter hour
+  const [formDuration, setFormDuration] = useState(1);        // hours, always a quarter-hour step
+  // True once the user has set the duration by hand in this form. Until
+  // then, picking a pillar fills in the duration last used for that pillar.
+  const durationTouched = useRef(false);
   const [formRepeatType, setFormRepeatType] = useState<RepeatType>('none');
   const [formRepeatDays, setFormRepeatDays] = useState<number[]>([]);
 
@@ -415,15 +370,10 @@ export default function ScheduleScreen() {
     setEditingTask(null);
     setFormName('');
     setFormPillar('work');
-    const now     = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2,'0')}:${
-      (Math.round(now.getMinutes() / 15) * 15 % 60).toString().padStart(2,'0')
-    }`;
-    const { hourIdx, minIdx, ampmIdx } = timeToIndices(timeStr);
-    setFormHourIdx(hourIdx);
-    setFormMinIdx(minIdx);
-    setFormAmPmIdx(ampmIdx);
-    setFormDurIdx(3);   // index 3 = 1.0 hr (0.25, 0.50, 0.75, 1.00 = index 3)
+    setFormStart(snapTime(timeOfDate(new Date())));
+    // Start from the duration last used for this pillar (1 hour the first time).
+    setFormDuration(durationForPillar(settings?.last_durations, 'work'));
+    durationTouched.current = false;
     setFormRepeatType('none');
     setFormRepeatDays([]);
     setModalVisible(true);
@@ -433,11 +383,9 @@ export default function ScheduleScreen() {
     setEditingTask(task);
     setFormName(task.name);
     setFormPillar(task.pillar);
-    const { hourIdx, minIdx, ampmIdx } = timeToIndices(task.start_time);
-    setFormHourIdx(hourIdx);
-    setFormMinIdx(minIdx);
-    setFormAmPmIdx(ampmIdx);
-    setFormDurIdx(durationToIdx(task.duration_hours));
+    setFormStart(snapTime(task.start_time));
+    setFormDuration(snapDuration(task.duration_hours));
+    durationTouched.current = true; // an existing task keeps its own duration
     setFormRepeatType(task.repeat_type);
     setFormRepeatDays(
       task.repeat_days
@@ -473,9 +421,21 @@ export default function ScheduleScreen() {
     }
   }
 
-  const liveStartTime = indicesToTime(formHourIdx, formMinIdx, formAmPmIdx);
-  // Read the numeric value from DURATION_VALUES (not the label string from DURATIONS)
-  const liveDuration  = DURATION_VALUES[formDurIdx];
+  const liveStartTime = formStart;
+  const liveDuration  = formDuration;
+
+  // Picking a pillar on a new task brings back the duration last used for it,
+  // unless the duration was already set by hand.
+  function changePillar(pillar: Pillar) {
+    setFormPillar(pillar);
+    if (!editingTask && !durationTouched.current) {
+      setFormDuration(durationForPillar(settings?.last_durations, pillar));
+    }
+  }
+  function changeDuration(hours: number) {
+    durationTouched.current = true;
+    setFormDuration(hours);
+  }
   const conflict      = findConflict(tasks, liveStartTime, liveDuration, editingTask?.id);
 
   function toggleDay(dow: number) {
@@ -520,6 +480,9 @@ export default function ScheduleScreen() {
     } else {
       await createTask(input);
     }
+    // Remember this duration for the pillar, for the next new task.
+    const remembered = rememberDuration(settings?.last_durations, formPillar, liveDuration);
+    if (remembered !== settings?.last_durations) await updateSettings({ last_durations: remembered });
     setModalVisible(false);
     await loadTasks();
     if (selectedDate === getTodayString()) await refreshTasks(selectedDate);
@@ -741,23 +704,15 @@ export default function ScheduleScreen() {
             <Text style={styles.fieldLabel}>Pillar</Text>
             <PillarSelector
               selected={formPillar}
-              onChange={setFormPillar}
+              onChange={changePillar}
               showCare={careEnabled}
             />
 
             <Text style={styles.fieldLabel}>Start time</Text>
-            <View style={styles.wheelRow}>
-              <WheelPicker items={HOURS}   selectedIndex={formHourIdx}  onChange={setFormHourIdx}  width={72} accessibilityLabel="Start hour" />
-              <Text style={styles.wheelColon} accessible={false}>:</Text>
-              <WheelPicker items={MINUTES} selectedIndex={formMinIdx}   onChange={setFormMinIdx}   width={72} accessibilityLabel="Start minute" />
-              <WheelPicker items={AMPM}    selectedIndex={formAmPmIdx}  onChange={setFormAmPmIdx}  width={72} accessibilityLabel="AM or PM" />
-            </View>
+            <StartTimeField time={formStart} onChange={setFormStart} />
 
             <Text style={styles.fieldLabel}>Duration</Text>
-            <View style={styles.wheelRow}>
-              <WheelPicker items={DURATIONS} selectedIndex={formDurIdx} onChange={setFormDurIdx} width={90} accessibilityLabel="Duration" />
-              <Text style={styles.wheelUnit}>hours</Text>
-            </View>
+            <DurationField hours={formDuration} onChange={changeDuration} />
 
             {/* Conflict warning */}
             {conflict && (
@@ -882,9 +837,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E5E7EB',
     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#1F2937',
   },
-  wheelRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  wheelColon:    { fontSize: 28, fontWeight: '700', color: '#374151', marginBottom: 4 },
-  wheelUnit:     { fontSize: 16, color: '#6B7280', fontWeight: '500', marginLeft: 8 },
   conflictBanner:{ marginTop: 14, backgroundColor: '#FEF9C3', borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: '#EAB308' },
   conflictText:  { fontSize: 13, color: '#713F12', lineHeight: 18 },
   repeatChips:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
