@@ -9,7 +9,7 @@
 //     write, choose a prompt, and mark the day as an exception.
 //   - When you save, the entry is written to the database and the list refreshes.
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import { useReduceMotion } from '../components/companion/useReduceMotion';
 import { useCompanionLook } from '../components/companion/useCompanionLook';
 import {
   getJournalEntry,
+  getTasksForDates,
   saveJournalEntry,
   getRecentJournalEntries,
   incrementReflectionCount,
@@ -46,10 +47,22 @@ import {
 import { getTodayString, getDayOfYear } from '../utils/dateHelpers';
 import {
   selectDailyPrompt,
-  randomPrompt,
   formatPromptText,
+  findPromptByText,
+  formatOf,
+  templateFor,
+  withRating,
+  splitRating,
+  FORMAT_LABELS,
   Prompt,
 } from '../data/journalPrompts';
+import { getLastNDates } from '../utils/calculations';
+import { computeWeekSignals } from '../utils/insights';
+import {
+  differentPrompt, neglectedTwoWeeks, parsePromptHistory, promptSignals, recordShown, selectSmartPrompt,
+} from '../utils/promptPicker';
+import type { PromptSignals } from '../utils/promptPicker';
+import { thump } from '../components/companion/haptics';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 import { JournalEntry } from '../types';
@@ -71,6 +84,79 @@ function formatCardDate(dateStr: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// The two-minute timer for "two-minute" prompts: press Start, write until it
+// ends. It counts from a fixed end time, so it stays right if the phone is
+// slow or the app is left for a moment.
+// ─────────────────────────────────────────────────────────────────────────────
+export const TWO_MINUTES_MS = 2 * 60 * 1000;
+
+export function formatCountdown(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
+export function TwoMinuteTimer() {
+  const [endsAt, setEndsAt] = useState<number | null>(null); // null = not running
+  const [left, setLeft] = useState(TWO_MINUTES_MS);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (endsAt === null) return undefined;
+    const tick = () => {
+      const remaining = endsAt - Date.now();
+      if (remaining <= 0) {
+        setLeft(0);
+        setEndsAt(null);
+        setDone(true);
+        thump();
+      } else {
+        setLeft(remaining);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [endsAt]);
+
+  const running = endsAt !== null;
+  function press() {
+    if (running) {
+      setEndsAt(null);             // stop, and go back to 2:00
+      setLeft(TWO_MINUTES_MS);
+    } else {
+      setDone(false);
+      setLeft(TWO_MINUTES_MS);
+      setEndsAt(Date.now() + TWO_MINUTES_MS);
+    }
+  }
+
+  return (
+    <View style={styles.timerRow}>
+      <Text
+        style={[styles.timerClock, done && styles.timerClockDone]}
+        accessibilityLabel={done ? 'Time is up' : `${formatCountdown(left)} left`}
+        accessibilityLiveRegion="polite"
+        testID="two-minute-clock"
+      >
+        {formatCountdown(left)}
+      </Text>
+      <Text style={styles.timerHelp}>
+        {done ? 'Time. Finish your sentence.' : running ? 'Keep writing until it ends.' : 'Press Start, then write without stopping.'}
+      </Text>
+      <TouchableOpacity
+        style={styles.timerBtn}
+        onPress={press}
+        accessibilityRole="button"
+        accessibilityLabel={running ? 'Stop the timer' : done ? 'Start the two-minute timer again' : 'Start the two-minute timer'}
+        testID="two-minute-button"
+      >
+        <Text style={styles.timerBtnText}>{running ? 'Stop' : done ? 'Again' : 'Start'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // JournalScreen component — the main export used by the navigation stack.
 // ─────────────────────────────────────────────────────────────────────────────
 export default function JournalScreen() {
@@ -79,6 +165,7 @@ export default function JournalScreen() {
   // ── Global state (Zustand) ─────────────────────────────────────────────────
   // settings contains streak, treat_count, care_enabled, companion_name, etc.
   const settings = useAppStore((s) => s.settings);
+  const updateSettings = useAppStore((s) => s.updateSettings);
 
   // Convenience shortcuts so we don't need to keep writing "settings?.xxx ?? 0"
   const streak      = settings?.current_streak ?? 0;
@@ -96,6 +183,10 @@ export default function JournalScreen() {
   const [isException,      setIsException]      = useState(false);    // exception-day toggle
   const [exceptionReason,  setExceptionReason]  = useState('');       // reason field (shown when isException=true)
   const [saving,           setSaving]           = useState(false);    // prevent double-taps
+  const [rating,           setRating]           = useState<number | null>(null); // 1 to 5, for "scale" prompts
+  // How the week went (completion, mood, a pillar neglected twice). The
+  // prompt of the day is picked from this. null until the first load.
+  const [weekSignals,      setWeekSignals]      = useState<PromptSignals | null>(null);
 
   // ── Prompt state ───────────────────────────────────────────────────────────
   // We pick a daily prompt when the modal opens. The user can swap it with 🔄.
@@ -119,6 +210,21 @@ export default function JournalScreen() {
 
       setEntries(all);
       setTodayEntry(todayEnt);
+
+      // This week and last week, for the prompt picker.
+      const current = useAppStore.getState().settings;
+      if (current) {
+        const days = getLastNDates(14);
+        const taskMap = await getTasksForDates(days);
+        const tasksOf = (dates: string[]) => dates.flatMap((d) => taskMap[d] ?? []).filter((t) => !t.is_master);
+        const thisWeek = tasksOf(days.slice(7));
+        const lastWeek = tasksOf(days.slice(0, 7));
+        const weekEntries = all.filter((e) => e.date >= days[7]);
+        setWeekSignals(promptSignals(
+          computeWeekSignals(thisWeek, weekEntries, current),
+          neglectedTwoWeeks(thisWeek, lastWeek, current),
+        ));
+      }
     } catch (err) {
       console.error('[JournalScreen] loadData error:', err);
     } finally {
@@ -152,28 +258,52 @@ export default function JournalScreen() {
 
     if (todayEntry) {
       // Editing an existing entry — restore its text and settings
-      setReflectionText(todayEntry.reflection_text);
+      // A rating is stored as the first line of the entry: take it back out.
+      const saved = splitRating(todayEntry.reflection_text);
+      setReflectionText(saved.body);
+      setRating(saved.rating);
       setIsException(todayEntry.is_exception_day);
       setExceptionReason(todayEntry.exception_reason ?? '');
-      // Try to find the original prompt in our data, otherwise just show the saved text
-      setCurrentPrompt({ text: todayEntry.prompt_used, category: 'balance' });
+      // Find the original prompt (and with it its format), otherwise just show the saved text
+      setCurrentPrompt(findPromptByText(todayEntry.prompt_used) ?? { text: todayEntry.prompt_used, category: 'balance' });
     } else {
-      // Fresh entry — reset everything
-      setReflectionText('');
+      // Fresh entry: the prompt of the day, picked from how the week went.
+      const today = getTodayString();
+      const history = parsePromptHistory(settings?.prompt_history);
+      const prompt = weekSignals
+        ? selectSmartPrompt({ signals: weekSignals, history, today, context: { streak, isSunday, careEnabled } }).prompt
+        : selectDailyPrompt(doy, streak, isSunday, careEnabled);
+      setCurrentPrompt(prompt);
+      setReflectionText(templateFor(prompt)); // a fill-in sentence, "Dear future me," ...
+      setRating(null);
       setIsException(false);
       setExceptionReason('');
-      setCurrentPrompt(selectDailyPrompt(doy, streak, isSunday, careEnabled));
+      // Remember it was shown, so it does not come back for 30 days.
+      if (prompt.id) {
+        const next = JSON.stringify(recordShown(history, prompt.id, today));
+        if (next !== settings?.prompt_history) updateSettings({ prompt_history: next }).catch(() => {});
+      }
     }
 
     setModalVisible(true);
-  }, [todayEntry, streak, careEnabled]);
+  }, [todayEntry, streak, careEnabled, settings?.prompt_history, weekSignals, updateSettings]);
 
   // ── Swap the prompt (🔄 button) ────────────────────────────────────────────
   const handleNewPrompt = useCallback(() => {
-    const isSunday = new Date().getDay() === 0;
-    const newP = randomPrompt(streak, isSunday, careEnabled, currentPrompt.text);
+    // Another prompt from the SAME category as the one on screen.
+    const today = getTodayString();
+    const history = parsePromptHistory(settings?.prompt_history);
+    const newP = differentPrompt({ current: currentPrompt, history, today });
+    // Swap the starting text too, unless the user has already written something of their own.
+    const untouched = reflectionText.trim() === '' || reflectionText === templateFor(currentPrompt);
+    if (untouched) setReflectionText(templateFor(newP));
+    setRating(null);
     setCurrentPrompt(newP);
-  }, [streak, careEnabled, currentPrompt.text]);
+    if (newP.id) {
+      const next = JSON.stringify(recordShown(history, newP.id, today));
+      if (next !== settings?.prompt_history) updateSettings({ prompt_history: next }).catch(() => {});
+    }
+  }, [currentPrompt, reflectionText, settings?.prompt_history, updateSettings]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // handleSave — validates + writes the entry, then awards treats if milestone.
@@ -181,7 +311,9 @@ export default function JournalScreen() {
   const handleSave = useCallback(async () => {
     // 1. Validate: make sure there's something written
     const trimmed = reflectionText.trim();
-    if (!trimmed) {
+    // The starting text of a fill-in, zoom or letter prompt, left as it
+    // was, is not an entry.
+    if (!trimmed || trimmed === templateFor(currentPrompt).trim()) {
       Alert.alert('Nothing to save', 'Please write something before saving.');
       return;
     }
@@ -198,7 +330,8 @@ export default function JournalScreen() {
       //    saveJournalEntry uses INSERT OR REPLACE so editing also works.
       await saveJournalEntry({
         date:             todayStr,
-        reflection_text:  trimmed,
+        // A 1 to 5 rating becomes the first line of the entry.
+        reflection_text:  formatOf(currentPrompt) === 'scale' ? withRating(trimmed, rating) : trimmed,
         prompt_used:      currentPrompt.text,
         is_exception_day: isException,
         exception_reason: isException ? exceptionReason.trim() : '',
@@ -233,6 +366,7 @@ export default function JournalScreen() {
   }, [
     reflectionText,
     currentPrompt,
+    rating,
     isException,
     exceptionReason,
     loadData,
@@ -300,6 +434,7 @@ export default function JournalScreen() {
   // actual streak number before displaying.
   // ─────────────────────────────────────────────────────────────────────────
   const promptDisplay = formatPromptText(currentPrompt.text, streak);
+  const format = formatOf(currentPrompt);
 
   // ── Full-screen loading spinner (only on very first load) ─────────────────
   if (loading) {
@@ -471,6 +606,9 @@ export default function JournalScreen() {
             <View style={styles.promptCard}>
               {/* Small label */}
               <Text style={styles.promptLabel}>TODAY'S PROMPT</Text>
+              {format !== 'open' && (
+                <Text style={styles.formatBadge} testID="prompt-format">{FORMAT_LABELS[format]}</Text>
+              )}
 
               {/* The actual prompt text */}
               <Text style={styles.promptText}>{promptDisplay}</Text>
@@ -481,12 +619,39 @@ export default function JournalScreen() {
                 onPress={handleNewPrompt}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="New prompt"
-                accessibilityHint="Shows a different writing prompt"
+                accessibilityLabel="Different prompt"
+                accessibilityHint="Shows another prompt of the same kind"
+                testID="different-prompt"
               >
-                <Text style={styles.newPromptButtonText}>🔄 New prompt</Text>
+                <Text style={styles.newPromptButtonText}>🔄 Different prompt</Text>
               </TouchableOpacity>
             </View>
+
+            {/* ── Rate 1 to 5 (scale prompts) ────────────────────────────── */}
+            {format === 'scale' && (
+              <View style={styles.scaleRow} accessibilityRole="radiogroup" accessibilityLabel="Your rating, 1 to 5">
+                {[1, 2, 3, 4, 5].map((n) => {
+                  const on = rating === n;
+                  return (
+                    <TouchableOpacity
+                      key={n}
+                      style={[styles.scaleChip, on && styles.scaleChipOn]}
+                      onPress={() => setRating(on ? null : n)}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${n} out of 5`}
+                      accessibilityState={{ selected: on }}
+                      testID={`rating-${n}`}
+                    >
+                      <Text style={[styles.scaleChipText, on && styles.scaleChipTextOn]}>{n}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* ── Two-minute timer (two-minute prompts). The key gives each
+                 prompt its own fresh timer. ────────────────────────────── */}
+            {format === 'two-minute' && <TwoMinuteTimer key={currentPrompt.text} />}
 
             {/* ── Main text area ─────────────────────────────────────────── */}
             {/*
@@ -498,7 +663,7 @@ export default function JournalScreen() {
               style={styles.textArea}
               value={reflectionText}
               onChangeText={setReflectionText}
-              placeholder="Start writing…"
+              placeholder={format === 'scale' ? 'One line on why…' : 'Start writing…'}
               accessibilityLabel="Your reflection"
               accessibilityHint={promptDisplay}
               placeholderTextColor="#9CA3AF"
@@ -833,6 +998,33 @@ const styles = StyleSheet.create({
     fontSize:   13,
     color:      '#6B7280',
   },
+
+  // ── Prompt formats ──────────────────────────────────────────────────────────
+  formatBadge: {
+    alignSelf: 'flex-start', fontSize: 11, fontWeight: '700', color: '#3C3489',
+    backgroundColor: '#FFFFFF', borderRadius: 8, overflow: 'hidden',
+    paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8,
+  },
+  scaleRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  scaleChip: {
+    flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, borderWidth: 1.5, borderColor: '#D1D5DB', backgroundColor: '#FFFFFF',
+  },
+  scaleChipOn: { backgroundColor: '#3C3489', borderColor: '#3C3489' },
+  scaleChipText: { fontSize: 17, fontWeight: '700', color: '#3C3489' },
+  scaleChipTextOn: { color: '#FFFFFF' },
+  timerRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14,
+    backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', padding: 10,
+  },
+  timerClock: { fontSize: 24, fontWeight: '800', color: '#3C3489', fontVariant: ['tabular-nums'], minWidth: 58 },
+  timerClockDone: { color: '#15803D' },
+  timerHelp: { flex: 1, fontSize: 12, color: '#6B7280', lineHeight: 16 },
+  timerBtn: {
+    minHeight: 44, minWidth: 64, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 22, backgroundColor: '#3C3489', paddingHorizontal: 14,
+  },
+  timerBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
   // ── Main text area ──────────────────────────────────────────────────────────
   textArea: {

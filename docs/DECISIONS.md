@@ -901,3 +901,54 @@ Each entry says what was decided, why, and how to reverse it.
   `WheelPicker` was used. The notification times in Onboarding and Settings
   use the native iOS time picker and were left as they are.
 
+### D81. Process prompts: 78 new, in the app's own words
+- **What:** 78 prompts in seven new categories (`process`, `controllables`,
+  `stretch`, `unstuck`, `scaffold`, `pastself`, `oneRep`), 11 or 12 each,
+  plus 4 gentle self-care prompts. The 40 original prompts are unchanged.
+- **Originality:** the prompts apply general ideas (care about the daily
+  work, focus on what you control, pick useful discomfort, ask for help,
+  compare with your past self) to the user's day and pillars. No sentence is
+  quoted or closely paraphrased from *Chop Wood, Carry Water* or *Hidden
+  Potential*, neither book is named in the app, and a test bans their titles,
+  authors and best-known phrases. The example prompts in the spec's table
+  were not copied either.
+- **`source`** (`'process'` or `'potential'`) is stored on each new prompt
+  for analytics and is never shown.
+- **Ids:** every prompt has an id from its list and position (`process-3`).
+  New prompts must be added at the end of a list so ids keep their meaning.
+
+### D82. Prompt formats use the existing writing box
+- `fill`: the sentence with its blanks is put in the writing box to complete.
+- `zoom`: the box starts with "This month:" and "The next hour:".
+- `letter`: the box starts with "Dear future me,".
+- `scale`: a row of 1 to 5 chips. The rating is saved as the first line of
+  the entry ("Rating: 4/5"), so no database change was needed. It is
+  optional: an entry saves without one.
+- `two-minute`: a 2:00 countdown with Start, Stop and Again, and a haptic
+  thump at the end. It does not lock the box or stop the user saving early.
+- Starting text left untouched does not count as an entry.
+
+### D83. How the prompt of the day is picked
+- **Order when several rules apply:** stressed or tired journal first, then
+  low completion, then a pillar neglected two weeks running, then a strong
+  week, then plain rotation. The spec listed the rules without an order;
+  mood comes first so a hard week gets the gentlest prompt.
+- **Thresholds:** "stressed" is 2 or more stressed or tired words in the
+  week's entries. Low completion is under 50% and needs at least 3 tasks in
+  the week (so a week with nothing planned is not treated as a bad week). A
+  strong week is `isStrongWeek` from `computeWeekSignals`, also with 3 tasks.
+- **"Neglected two weeks in a row":** the pillar furthest behind its target
+  in the last 7 days is the same as in the 7 days before, and it was behind
+  both times.
+- **"A gentle care prompt"** means the 4 new self-care prompts, not the
+  existing Care pillar prompts, which only make sense with the Care pillar on.
+- **30 days:** shown prompts are kept in `settings.prompt_history`. If a
+  rule's categories are used up (11 `unstuck` prompts in a long stuck
+  stretch), the picker borrows a fresh prompt from the rest instead of
+  repeating one.
+- **Steady for the day:** reopening the Journal shows the same prompt.
+- **"Different prompt"** replaces "New prompt". It picks from the same
+  category as the prompt on screen (the old button picked from everything).
+- **Reverse:** in `JournalScreen.tsx` `openModal`, use `selectDailyPrompt`
+  (still in `journalPrompts.ts`) instead of `selectSmartPrompt`.
+

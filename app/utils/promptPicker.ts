@@ -193,16 +193,14 @@ export function differentPrompt(args: {
   current: Prompt;
   history: readonly Shown[];
   today: string;
-  context: PromptContext;
   rand?: () => number;
 }): Prompt {
-  const { current, history, today, context } = args;
+  const { current, history, today } = args;
   const rand = args.rand ?? Math.random;
   const same = ALL_PROMPTS.filter((p) =>
     p.category === current.category && p.text !== current.text &&
     // Stay within the kind of care prompt that was on screen.
-    (current.category !== 'care' || !!p.gentle === !!current.gentle) &&
-    (p.gentle || allowed(p, context) || p.category === current.category));
+    (current.category !== 'care' || !!p.gentle === !!current.gentle));
   if (same.length === 0) return current;
   const recent = recentIds(history, today);
   const unseen = same.filter((p) => !recent.has(p.id!));
