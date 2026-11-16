@@ -23,7 +23,7 @@ the checks to do by hand are in `docs/MANUAL_CHECKS.md` under "Lively run".
 | A. The dog | `8678eeb` | `f05b7d32-d2e0-4b01-b579-5a1a313e5599` |
 | B. Time picker | `b5356a9` | `53c8453d-045f-4be6-8091-320381f417ae` |
 | C. Journal prompts | `9535716`, `99ccbcd` | `0af3c7e3-4b0c-4a7a-b9ff-f9ae931f6c61` |
-| D. Delivery rule, this report | see `git log` | see the last line of this file |
+| D. Delivery rule, this report | `de210b8` | `f3c860f5-dccd-4744-9400-2f00f1461925` |
 
 ## Phase A: the dog never feels repetitive
 
