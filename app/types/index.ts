@@ -86,6 +86,8 @@ export interface Settings {
   last_opened_at:  string | null;  // ISO time the app was last opened (for the "missed you" greeting)
   last_durations:  string;         // JSON map from pillar to the duration (hours) last used for it
   prompt_history:  string;         // JSON array of { id, date } for journal prompts shown in the last 30 days
+  // B6 fix: separate "last day with a completed task" from "last app open"
+  last_app_open_date: string | null; // set by checkStreakOnOpen; prevents double-run on same day
 }
 
 // ─── Input types ──────────────────────────────────────────────────────────────

@@ -176,7 +176,7 @@ describe('repeat patterns', () => {
 // fixed, at which point change it to `test`.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('known bugs in the repeat model', () => {
-  test.failing('B12: deleting one occurrence keeps it deleted', async () => {
+  test('B12: deleting one occurrence keeps it deleted', async () => {
     await createTask(repeating());
     const [tue] = await getTasksForDate(TUE);
 
@@ -186,7 +186,7 @@ describe('known bugs in the repeat model', () => {
     expect(await getTasksForDate(TUE)).toHaveLength(0);
   });
 
-  test.failing('B13: moving an occurrence does not leave a copy behind', async () => {
+  test('B13: moving an occurrence does not leave a copy behind', async () => {
     await createTask(repeating({ repeat_type: 'weekly' })); // Mondays only
     const [mon] = await getTasksForDate(MON);
 

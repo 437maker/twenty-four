@@ -116,7 +116,7 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   function daysLeftInCooldown(): number {
     if (!settings?.targets_last_changed) return 0;
     const daysSince = Math.floor(
-      (Date.now() - new Date(settings.targets_last_changed).getTime()) / 86400000
+      (Date.now() - new Date(settings.targets_last_changed + 'T12:00:00').getTime()) / 86400000
     );
     return Math.max(0, 7 - daysSince);
   }

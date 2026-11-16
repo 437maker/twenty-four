@@ -38,10 +38,12 @@ import {
   toggleTaskComplete,
   findConflict,
   getConflictingIds,
+  changeTreats,
+  logTreatEvent,
 } from '../db/queries';
 import { Task, NewTaskInput, Pillar, RepeatType } from '../types';
 import { getTodayString, formatDisplayDate } from '../utils/dateHelpers';
-import { calculateNewStreak, isStreakMilestone } from '../utils/calculations';
+import { calculateNewStreak, isStreakMilestone, milestoneBonus } from '../utils/calculations';
 import SettingsScreen from './SettingsScreen';
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
@@ -543,14 +545,27 @@ export default function ScheduleScreen() {
     if (selectedDate === getTodayString() && settings) {
       const updated = await getTasksForDate(selectedDate);
       const today   = getTodayString();
-      if (settings.last_active_date !== today) {
+      // B6 fix: streak updates only when a task is completed on today (first time today)
+      if (settings.last_active_date !== today && updated.some((t) => t.completed)) {
         const newStreak = calculateNewStreak(updated, settings.current_streak);
+
+        // B6 fix: award milestone bonuses on the task-toggle path too
+        const claimed: number[] = JSON.parse(settings.milestones_claimed || '[]');
+        const isMilestone = isStreakMilestone(newStreak) && !claimed.includes(newStreak);
+        if (isMilestone) {
+          const bonus = milestoneBonus(newStreak);
+          await changeTreats(bonus);
+          await logTreatEvent('streak_milestone', bonus, `${newStreak}-day streak milestone`);
+          claimed.push(newStreak);
+        }
+
         await updateSettings({
-          current_streak:   newStreak,
-          longest_streak:   Math.max(newStreak, settings.longest_streak),
-          last_active_date: today,
+          current_streak:    newStreak,
+          longest_streak:    Math.max(newStreak, settings.longest_streak),
+          last_active_date:  today,
+          milestones_claimed: JSON.stringify(claimed),
         });
-        if (isStreakMilestone(newStreak)) setPendingCelebration(true);
+        if (isMilestone) setPendingCelebration(true);
       }
       await refreshTasks(selectedDate);
     }

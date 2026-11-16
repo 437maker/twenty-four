@@ -78,6 +78,8 @@ export async function getSettings(): Promise<Settings | null> {
     last_opened_at:               row.last_opened_at ?? null,
     last_durations:               row.last_durations ?? '{}',
     prompt_history:               row.prompt_history ?? '[]',
+    // B6 fix
+    last_app_open_date:           row.last_app_open_date ?? null,
   };
 }
 
@@ -171,12 +173,27 @@ function doesRepeatFire(
 export async function ensureRepeatInstances(targetDate: string): Promise<void> {
   const db = await getDatabase();
 
+  // B7 fix: cap instance creation to 60 days from today (use local date, not UTC)
+  const now = new Date();
+  const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const cutoffMs  = new Date(localToday + 'T12:00:00').getTime() + 60 * 86400000;
+  const cutoffDt  = new Date(cutoffMs);
+  const cutoffDate = `${cutoffDt.getFullYear()}-${String(cutoffDt.getMonth() + 1).padStart(2, '0')}-${String(cutoffDt.getDate()).padStart(2, '0')}`;
+  if (targetDate > cutoffDate) return;
+
   const masters = await db.getAllAsync<any>(
     'SELECT * FROM tasks WHERE is_master = 1'
   );
 
   for (const m of masters) {
     if (!doesRepeatFire(m.repeat_type, m.repeat_days, m.date, targetDate)) continue;
+
+    // B12/B13 fix: skip exception dates (deleted or moved occurrences)
+    const exception = await db.getFirstAsync<{ master_id: number }>(
+      'SELECT master_id FROM repeat_exceptions WHERE master_id = ? AND date = ?',
+      [m.id, targetDate]
+    );
+    if (exception) continue;
 
     const existing = await db.getFirstAsync<{ id: number }>(
       'SELECT id FROM tasks WHERE master_id = ? AND date = ?',
@@ -273,15 +290,25 @@ export async function updateTask(
   const fields = Object.keys(updates) as (keyof NewTaskInput)[];
   if (fields.length === 0) return;
 
-  // Build SET clause from user updates, then append sync metadata.
-  const setClause = fields.map((f) => `${f} = ?`).join(', ');
-  const values    = fields.map((f) => updates[f]);
+  // B14 fix: turning on a repeat type promotes the task to a master.
+  const extraFields: string[]  = [];
+  const extraValues: unknown[] = [];
+  if (updates.repeat_type && updates.repeat_type !== 'none') {
+    extraFields.push('is_master = ?');
+    extraValues.push(1);
+  }
+
+  const allSetClauses = [
+    ...fields.map((f) => `${f} = ?`),
+    ...extraFields,
+    `updated_at = ?`,
+    `sync_status = 'pending_push'`,
+  ].join(', ');
+  const values = [...fields.map((f) => updates[f]), ...extraValues, nowIso()];
 
   await db.runAsync(
-    `UPDATE tasks
-        SET ${setClause}, updated_at = ?, sync_status = 'pending_push'
-      WHERE id = ?`,
-    [...(values as any[]), nowIso(), id]
+    `UPDATE tasks SET ${allSetClauses} WHERE id = ?`,
+    [...(values as any[]), id]
   );
 }
 
@@ -303,12 +330,40 @@ async function recordTombstoneIfNeeded(id: number): Promise<void> {
 export async function deleteTask(id: number): Promise<void> {
   const db = await getDatabase();
   await recordTombstoneIfNeeded(id);
+
+  // B12 fix: if this is a repeat instance, record an exception so ensureRepeat
+  // Instances never recreates it.
+  const row = await db.getFirstAsync<{ master_id: number | null; date: string }>(
+    'SELECT master_id, date FROM tasks WHERE id = ?',
+    [id]
+  );
+  if (row?.master_id) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO repeat_exceptions (master_id, date) VALUES (?, ?)',
+      [row.master_id, row.date]
+    );
+  }
+
   await db.runAsync('DELETE FROM tasks WHERE id = ?', [id]);
 }
 
-// Move a single task (or repeat instance) to a different date
+// Move a single task (or repeat instance) to a different date.
+// B13 fix: when moving a repeat instance, record an exception for the original
+// date so ensureRepeatInstances doesn't recreate it there.
 export async function moveTask(id: number, newDate: string): Promise<void> {
   const db = await getDatabase();
+
+  const row = await db.getFirstAsync<{ master_id: number | null; date: string }>(
+    'SELECT master_id, date FROM tasks WHERE id = ?',
+    [id]
+  );
+  if (row?.master_id) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO repeat_exceptions (master_id, date) VALUES (?, ?)',
+      [row.master_id, row.date]
+    );
+  }
+
   await db.runAsync(
     `UPDATE tasks
         SET date = ?, updated_at = ?, sync_status = 'pending_push'
@@ -946,7 +1001,7 @@ export async function getTreatEarnedForYear(year: number): Promise<number> {
     `SELECT COALESCE(SUM(delta), 0) AS total
        FROM treat_history
       WHERE delta > 0
-        AND strftime('%Y', created_at) = ?`,
+        AND strftime('%Y', created_at, 'localtime') = ?`,
     [String(year)]
   );
   return row?.total ?? 0;
@@ -1104,6 +1159,7 @@ export const ALL_TABLES = [
   'task_tombstones',
   'chest_openings',
   'deliveries',
+  'repeat_exceptions',
 ] as const;
 
 export type TableName = (typeof ALL_TABLES)[number];

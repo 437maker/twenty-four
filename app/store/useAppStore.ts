@@ -245,8 +245,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       deliveryProgress:   null,
       pendingReaction:    null,
     });
-    // Same step App.tsx runs on a real first launch: stamps app_start_date
-    // and last_active_date so the new streak starts counting from today.
+    // Same step App.tsx runs on a real first launch: stamps app_start_date.
+    // last_active_date stays null until the first task is completed (B6).
     await get().checkStreakOnOpen();
   },
 
@@ -269,31 +269,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ── Sprint 2: streak check on every app open ─────────────────────────────────
-  // Rules:
-  //   • last_active_date == today          → check weekly box only (already opened today)
-  //   • last_active_date == yesterday      → consecutive day: increment streak
-  //   • last_active_date is anything else  → try to consume shield; if no shield → reset
+  // B6 rules (streak counts days with ≥1 completed task, not app opens):
+  //   • last_app_open_date == today  → already ran today, skip to weekly box
+  //   • last_active_date  == today   → handleToggle already processed streak today; skip
+  //   • last_active_date  == yesterday → task was completed yesterday: increment streak
+  //   • last_active_date  < yesterday  → missed days: try shield or reset
+  // last_active_date is ONLY updated by handleToggle (task completion), never here.
+  // last_app_open_date is ONLY updated here, to prevent double-runs.
   checkStreakOnOpen: async () => {
     const settings = await getSettings();
     if (!settings) return;
 
     const today     = getTodayStr();
     const yesterday = getYesterdayStr();
-    const last      = settings.last_active_date;
 
     // ── First open ever: record app_start_date ────────────────────────────────
     if (!settings.app_start_date) {
       await saveSettings({ app_start_date: today });
     }
 
-    if (last !== today) {
+    // Guard: skip streak logic if we already ran today OR handleToggle already processed today
+    const openGuard   = settings.last_app_open_date;
+    const lastTaskDay = settings.last_active_date;
+    if (openGuard === today || lastTaskDay === today) {
+      // Record today's open even if we're skipping streak logic
+      if (openGuard !== today) await saveSettings({ last_app_open_date: today });
+    } else {
+      // Set guard immediately to prevent re-run if called twice
+      await saveSettings({ last_app_open_date: today });
+
       // ── Determine if consecutive or missed ──────────────────────────────────
-      if (last === yesterday) {
-        // Consecutive day — increment streak
+      if (lastTaskDay === yesterday) {
+        // Yesterday had a completed task — increment streak
         const newStreak  = settings.current_streak + 1;
         const newLongest = Math.max(newStreak, settings.longest_streak);
 
-        // Check milestone claim (avoid re-claiming the same streak)
+        // Check milestone claim (avoid re-claiming within the same continuous run)
         const claimed: number[] = JSON.parse(settings.milestones_claimed || '[]');
         const isMilestone = isStreakMilestone(newStreak) && !claimed.includes(newStreak);
 
@@ -309,7 +320,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         await saveSettings({
           current_streak:    newStreak,
           longest_streak:    newLongest,
-          last_active_date:  today,
           milestones_claimed: JSON.stringify(claimed),
         });
 
@@ -319,7 +329,6 @@ export const useAppStore = create<AppState>((set, get) => ({
                 ...state.settings,
                 current_streak:     newStreak,
                 longest_streak:     newLongest,
-                last_active_date:   today,
                 milestones_claimed: JSON.stringify(claimed),
                 treat_count:        (state.settings.treat_count ?? 0) + treatDelta,
               }
@@ -329,34 +338,40 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
       } else {
         // Missed one or more days — try to use a shield
-        const oldStreak  = settings.current_streak;
-        const hasShield  = (settings.shields_owned ?? 0) > 0;
+        const oldStreak   = settings.current_streak;
+        const shieldsOwned = settings.shields_owned ?? 0;
+        // B5 fix: a shield covers exactly 1 missed day; count how many days were actually missed
+        const missedDays  = lastTaskDay
+          ? Math.max(0, Math.floor(
+              (new Date(today + 'T12:00:00').getTime() - new Date(lastTaskDay + 'T12:00:00').getTime()) / 86400000
+            ) - 1)
+          : 2; // null last_active_date = never completed any task
+        const hasShield   = shieldsOwned >= missedDays && missedDays === 1;
 
         if (hasShield && oldStreak > 0) {
-          // Shield absorbs the break — streak unchanged, shield consumed
+          // Shield absorbs exactly 1 missed day — streak unchanged, shield consumed
           await saveSettings({
-            shields_owned:   (settings.shields_owned ?? 1) - 1,
-            last_active_date: today,
+            shields_owned: (settings.shields_owned ?? 1) - 1,
           });
           set((state) => ({
             settings: state.settings
               ? {
                   ...state.settings,
-                  shields_owned:    Math.max(0, (state.settings.shields_owned ?? 1) - 1),
-                  last_active_date: today,
+                  shields_owned: Math.max(0, (state.settings.shields_owned ?? 1) - 1),
                 }
               : null,
             shieldConsumed: true,
           }));
         } else {
           // No shield — reset streak
-          if (oldStreak > 0 && last) {
-            await logStreakEnd(last, oldStreak);
+          if (oldStreak > 0 && lastTaskDay) {
+            await logStreakEnd(lastTaskDay, oldStreak);
           }
-          await saveSettings({ current_streak: 0, last_active_date: today });
+          // B4 fix: clear milestones_claimed on reset so they can be re-earned on new streak
+          await saveSettings({ current_streak: 0, milestones_claimed: '[]' });
           set((state) => ({
             settings: state.settings
-              ? { ...state.settings, current_streak: 0, last_active_date: today }
+              ? { ...state.settings, current_streak: 0, milestones_claimed: '[]' }
               : null,
             streakJustBroke: oldStreak > 0,
           }));

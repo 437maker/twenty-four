@@ -326,8 +326,11 @@ export default function JournalScreen() {
       // 2. Count words (split on whitespace, remove empties)
       const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
 
-      // 3. Save the entry to the database.
-      //    saveJournalEntry uses INSERT OR REPLACE so editing also works.
+      // 3. Check if an entry for today already exists (re-save vs. new entry).
+      //    B9 fix: the bonus counts only NEW entries, not re-saves.
+      const existingEntry = await getJournalEntry(todayStr);
+      const isNewEntry    = !existingEntry;
+
       await saveJournalEntry({
         date:             todayStr,
         // A 1 to 5 rating becomes the first line of the entry.
@@ -341,8 +344,8 @@ export default function JournalScreen() {
       // The dog trots over and nuzzles the next time Home is on screen.
       useAppStore.getState().queueReaction('journalNuzzle');
 
-      // 4. Increment the global reflection counter and get the new total
-      const newCount = await incrementReflectionCount();
+      // 4. Increment the global reflection counter only for NEW entries (B9)
+      const newCount = isNewEntry ? await incrementReflectionCount() : (settings?.reflection_count ?? 0);
 
       // 5. Milestone reward: every 10 reflections → +25 treats!
       if (newCount % 10 === 0) {

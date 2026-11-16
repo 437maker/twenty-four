@@ -16,12 +16,14 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   return database;
 }
 
-// Helper: run SQL and swallow errors (used for ALTER TABLE ADD COLUMN).
+// Helper: run SQL and swallow duplicate-column-name errors only.
+// Any other error is re-thrown so a failed migration cannot be silent.
 async function tryExec(db: SQLite.SQLiteDatabase, sql: string): Promise<void> {
   try {
     await db.execAsync(sql);
-  } catch (_) {
-    // Column / table likely already exists — safe to ignore
+  } catch (err: any) {
+    const msg: string = err?.message ?? String(err);
+    if (!msg.includes('duplicate column name')) throw err;
   }
 }
 
@@ -125,7 +127,9 @@ export async function initializeDatabase(): Promise<void> {
   await tryExec(db, `ALTER TABLE tasks ADD COLUMN google_event_id TEXT`);
   await tryExec(db, `ALTER TABLE tasks ADD COLUMN google_etag TEXT`);
   await tryExec(db, `ALTER TABLE tasks ADD COLUMN google_updated TEXT`);
-  await tryExec(db, `ALTER TABLE tasks ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`);
+  // B0 fix: constant default so the ALTER succeeds on a table that already has rows.
+  await tryExec(db, `ALTER TABLE tasks ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`);
+  await tryExec(db, `UPDATE tasks SET updated_at = datetime('now') WHERE updated_at = ''`);
   await tryExec(db, `ALTER TABLE tasks ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending_push'`);
   await tryExec(db, `ALTER TABLE tasks ADD COLUMN origin TEXT NOT NULL DEFAULT 'app'`);
 
@@ -204,6 +208,23 @@ export async function initializeDatabase(): Promise<void> {
   await tryExec(db, `UPDATE settings SET delivery_type_history = '[]' WHERE delivery_type_history IS NULL OR delivery_type_history = ''`);
   await tryExec(db, `UPDATE settings SET delivery_content_history = '[]' WHERE delivery_content_history IS NULL OR delivery_content_history = ''`);
   await tryExec(db, `UPDATE settings SET delivery_tag_weights = '{}' WHERE delivery_tag_weights IS NULL OR delivery_tag_weights = ''`);
+
+  // ── B12/B13 fix: skip deleted/moved repeat occurrences ───────────────────────
+  // repeat_exceptions(master_id, date) means "don't create an instance of master
+  // master_id on that date." deleteTask and moveTask write rows here; ensureRepeat
+  // Instances reads and skips them.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS repeat_exceptions (
+      master_id INTEGER NOT NULL,
+      date      TEXT    NOT NULL,
+      PRIMARY KEY (master_id, date)
+    )
+  `);
+
+  // ── B6 fix: separate "last day with a completed task" from "last app open" ──
+  // last_active_date now only updates when a task is completed (handleToggle).
+  // last_app_open_date guards against checkStreakOnOpen running twice in one day.
+  await tryExec(db, `ALTER TABLE settings ADD COLUMN last_app_open_date TEXT`);
 
   // ── Lively run: last app open, last used durations, journal prompt history ──
   await tryExec(db, `ALTER TABLE settings ADD COLUMN last_opened_at TEXT`);

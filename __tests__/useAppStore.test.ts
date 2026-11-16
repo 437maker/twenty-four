@@ -95,6 +95,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     last_opened_at:            null,
     last_durations:            '{}',
     prompt_history:            '[]',
+    last_app_open_date:        null,
     ...overrides,
   };
 }
@@ -203,12 +204,15 @@ describe('checkStreakOnOpen — consecutive day', () => {
 
     await useAppStore.getState().checkStreakOnOpen();
 
+    // B6 fix: checkStreakOnOpen no longer sets last_active_date (only handleToggle does)
     expect(mockSaveSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         current_streak: 4,
         longest_streak: 4,
-        last_active_date: '2026-05-15',
       })
+    );
+    expect(mockSaveSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ last_active_date: expect.anything() })
     );
   });
 
@@ -285,20 +289,17 @@ describe('checkStreakOnOpen — consecutive day', () => {
     );
   });
 
-  test('does not re-award an already-claimed milestone', async () => {
-    // User hits 7 again somehow (e.g. broke and rebuilt). Should still
-    // award because milestones_claimed is reset on streak break? Let's
-    // verify the implemented behavior: it does NOT re-award if already
-    // in the claimed list. (This is current behavior — flag if you want
-    // to change it: streaks rebuilt from 0 cannot re-earn the 7-day
-    // bonus until you also clear milestones_claimed on reset.)
+  test('B4: does not re-award a milestone within the same continuous streak', async () => {
+    // milestones_claimed = '[7]' and current_streak = 7 means this run
+    // already claimed the 7-day milestone and kept going. Incrementing to 8
+    // should NOT award 7 again.
     pinDate('2026-05-15');
     mockGetSettings.mockResolvedValue(
       settings({
         app_start_date: '2026-05-09',
         last_active_date: '2026-05-14',
-        current_streak: 6,
-        milestones_claimed: '[7]', // already claimed
+        current_streak: 7,
+        milestones_claimed: '[7]', // already claimed in this run
       })
     );
 
@@ -307,18 +308,36 @@ describe('checkStreakOnOpen — consecutive day', () => {
     expect(mockChangeTreats).not.toHaveBeenCalled();
     expect(useAppStore.getState().pendingCelebration).toBe(false);
   });
+
+  test('B4: re-awards a milestone after a streak is reset and rebuilt', async () => {
+    // After a reset milestones_claimed is cleared, so rebuilding to 7 pays again.
+    pinDate('2026-05-15');
+    mockGetSettings.mockResolvedValue(
+      settings({
+        app_start_date: '2026-05-09',
+        last_active_date: '2026-05-14',
+        current_streak: 6,
+        milestones_claimed: '[]', // cleared by prior reset
+      })
+    );
+
+    await useAppStore.getState().checkStreakOnOpen();
+
+    expect(mockChangeTreats).toHaveBeenCalledWith(15);
+    expect(useAppStore.getState().pendingCelebration).toBe(true);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scenario: missed day (last_active_date older than yesterday)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('checkStreakOnOpen — missed day with shield', () => {
-  test('consumes one shield, preserves streak, sets shieldConsumed banner', async () => {
+  test('B5: consumes one shield for exactly 1 missed day, preserves streak', async () => {
     pinDate('2026-05-15');
     mockGetSettings.mockResolvedValue(
       settings({
         app_start_date: '2026-05-01',
-        last_active_date: '2026-05-12', // 3 days ago
+        last_active_date: '2026-05-13', // exactly 1 day missed (May 14)
         current_streak: 10,
         shields_owned: 2,
       })
@@ -326,13 +345,40 @@ describe('checkStreakOnOpen — missed day with shield', () => {
 
     await useAppStore.getState().checkStreakOnOpen();
 
-    expect(mockSaveSettings).toHaveBeenCalledWith({
-      shields_owned: 1,
-      last_active_date: '2026-05-15',
-    });
-    expect(mockLogStreakEnd).not.toHaveBeenCalled(); // streak preserved
+    // B6 fix: checkStreakOnOpen no longer sets last_active_date
+    expect(mockSaveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ shields_owned: 1 })
+    );
+    expect(mockSaveSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ last_active_date: expect.anything() })
+    );
+    expect(mockLogStreakEnd).not.toHaveBeenCalled();
     expect(useAppStore.getState().shieldConsumed).toBe(true);
     expect(useAppStore.getState().streakJustBroke).toBe(false);
+  });
+
+  test('B5: a shield does NOT cover a 2+ day gap — streak resets instead', async () => {
+    pinDate('2026-05-15');
+    mockGetSettings.mockResolvedValue(
+      settings({
+        app_start_date: '2026-05-01',
+        last_active_date: '2026-05-12', // 3 days ago — 2 missed days (13 and 14)
+        current_streak: 10,
+        shields_owned: 3,
+      })
+    );
+
+    await useAppStore.getState().checkStreakOnOpen();
+
+    expect(mockSaveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ current_streak: 0, milestones_claimed: '[]' })
+    );
+    expect(mockSaveSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ last_active_date: expect.anything() })
+    );
+    expect(mockLogStreakEnd).toHaveBeenCalledWith('2026-05-12', 10);
+    expect(useAppStore.getState().shieldConsumed).toBe(false);
+    expect(useAppStore.getState().streakJustBroke).toBe(true);
   });
 });
 
@@ -351,10 +397,13 @@ describe('checkStreakOnOpen — missed day without shield', () => {
     await useAppStore.getState().checkStreakOnOpen();
 
     expect(mockLogStreakEnd).toHaveBeenCalledWith('2026-05-12', 10);
-    expect(mockSaveSettings).toHaveBeenCalledWith({
-      current_streak: 0,
-      last_active_date: '2026-05-15',
-    });
+    // B6 fix: checkStreakOnOpen no longer sets last_active_date
+    expect(mockSaveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ current_streak: 0, milestones_claimed: '[]' })
+    );
+    expect(mockSaveSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ last_active_date: expect.anything() })
+    );
     expect(useAppStore.getState().streakJustBroke).toBe(true);
   });
 

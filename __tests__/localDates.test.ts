@@ -94,6 +94,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     last_opened_at:            null,
     last_durations:            '{}',
     prompt_history:            '[]',
+    last_app_open_date:        null,
     ...overrides,
   };
 }
@@ -175,12 +176,15 @@ describe('checkStreakOnOpen at 11:30pm local', () => {
 
     await useAppStore.getState().checkStreakOnOpen();
 
+    // B6: checkStreakOnOpen no longer sets last_active_date (only handleToggle does)
     expect(mockSaveSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         current_streak: 4,
         longest_streak: 4,
-        last_active_date: LOCAL_TODAY,
       })
+    );
+    expect(mockSaveSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ last_active_date: expect.anything() })
     );
     expect(mockLogStreakEnd).not.toHaveBeenCalled();
     expect(useAppStore.getState().streakJustBroke).toBe(false);
@@ -226,10 +230,13 @@ describe('checkStreakOnOpen at 11:30pm local', () => {
     await useAppStore.getState().checkStreakOnOpen();
 
     expect(mockLogStreakEnd).toHaveBeenCalledWith('2026-05-13', 9);
-    expect(mockSaveSettings).toHaveBeenCalledWith({
-      current_streak: 0,
-      last_active_date: LOCAL_TODAY,
-    });
+    // B6: checkStreakOnOpen no longer sets last_active_date
+    expect(mockSaveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ current_streak: 0, milestones_claimed: '[]' })
+    );
+    expect(mockSaveSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ last_active_date: expect.anything() })
+    );
   });
 });
 

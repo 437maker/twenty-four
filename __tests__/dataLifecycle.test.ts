@@ -81,6 +81,7 @@ async function seedUsedApp(): Promise<void> {
   rawDb().prepare(`INSERT INTO task_tombstones (google_event_id) VALUES ('evt_123')`).run();
   rawDb().prepare(`INSERT INTO chest_openings (tier, bones) VALUES ('wooden', 5)`).run();
   rawDb().prepare(`INSERT INTO deliveries (delivered_on, card_type, content_id, why_line) VALUES ('${DAY}', 'quote', 'q01', 'Test delivery')`).run();
+  rawDb().prepare(`INSERT INTO repeat_exceptions (master_id, date) VALUES (999, '${DAY}')`).run();
 }
 
 beforeEach(async () => {
@@ -370,9 +371,10 @@ describe('useAppStore.resetAllData', () => {
 
     const s = await getSettings();
     expect(s?.app_start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(s?.last_active_date).toBe(s?.app_start_date);
+    // B6 fix: last_active_date is only set when a task is completed, not on reset.
+    // After a wipe there are no completed tasks so it stays null.
+    expect(s?.last_active_date).toBeNull();
     expect(s?.current_streak).toBe(0);
-    expect(useAppStore.getState().settings?.last_active_date).toBe(s?.last_active_date);
   });
 });
 
@@ -383,7 +385,7 @@ describe('useAppStore.resetAllData', () => {
 // passing while the bug exists, and as failing the moment the bug is fixed, at
 // which point change `test.failing` to `test`.
 describe('known bug B0: upgrading a database that already has tasks', () => {
-  test.failing('the Sprint 3 migration adds tasks.updated_at and tasks can still be created', async () => {
+  test('the Sprint 3 migration adds tasks.updated_at and tasks can still be created', async () => {
     // Build the April ("Phase 1.0") tasks table with one existing row.
     resetRealDb();
     rawDb().exec(`
