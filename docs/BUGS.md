@@ -18,9 +18,12 @@ Line numbers are as of the commit that added the entry.
 - **How to remove:** follow the step-by-step in `docs/DECISIONS.md` D69.
 - **Added:** 2026-11-14.
 
-## Open
+## Fixed
 
-### B0. HIGH: upgrading a database that already has tasks breaks task creation
+The bugs below were fixed in commit `639039b` (Phase B, 2026-11-16).
+Tests that were `test.failing` before the fix are now plain `test`.
+
+### B0 (fixed). HIGH: upgrading a database that already has tasks breaks task creation
 - **Where:** `app/db/database.ts`, Sprint 3 migration:
   `ALTER TABLE tasks ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`.
 - **Why:** SQLite refuses to add a column with a non-constant default
@@ -44,14 +47,14 @@ Line numbers are as of the commit that added the entry.
   More generally, `tryExec` should only swallow "duplicate column name" errors
   and re-throw everything else, so a failed migration can never be silent again.
 
-### B1. Yearly "treats earned" uses the UTC year
+### B1 (fixed). Yearly "treats earned" uses the UTC year
 - **Where:** `app/db/queries.ts`, `getTreatEarnedForYear` (`strftime('%Y', created_at)`).
 - **Repro:** earn treats at 9pm Boston time on Dec 31. `created_at` is written by
   SQLite's `datetime('now')`, which is UTC, so the row is stamped Jan 1.
 - **Impact:** low. A few hours of treats per year land in the wrong year on the Yearly screen.
 - **Fix idea:** `strftime('%Y', created_at, 'localtime')`.
 
-### B2. Target-change cooldown mixes a local date with a UTC parse
+### B2 (fixed). Target-change cooldown mixes a local date with a UTC parse
 - **Where:** `app/screens/SettingsScreen.tsx:86`, `new Date(settings.targets_last_changed)`.
 - **Repro:** `targets_last_changed` is a local "YYYY-MM-DD". `new Date('2026-05-15')` parses
   it as UTC midnight (8pm the previous evening in Boston), so the 7-day cooldown
@@ -59,21 +62,21 @@ Line numbers are as of the commit that added the entry.
 - **Impact:** low. The cooldown is slightly short.
 - **Fix idea:** parse with `T12:00:00` like the rest of the app, or compare date strings.
 
-### B4. Milestone bonuses can never be re-earned
+### B4 (fixed). Milestone bonuses can never be re-earned
 - **Where:** `app/store/useAppStore.ts`, `checkStreakOnOpen` (`milestones_claimed`).
 - **Repro:** reach a 7-day streak (bonus paid), break it, build to 7 again. No bonus.
 - **Impact:** product decision, not a crash. Documented by the test
   "does not re-award an already-claimed milestone".
 - **Question for Sahil:** is this intended? If not, clear `milestones_claimed` on reset.
 
-### B5. One shield covers a gap of any length
+### B5 (fixed). One shield covers a gap of any length
 - **Where:** `app/store/useAppStore.ts`, missed-day branch of `checkStreakOnOpen`.
 - **Repro:** hold a 10-day streak and one shield, stay away for a month, open the app.
   The streak is still 10 and one shield is gone.
 - **Impact:** product decision. A shield is described as absorbing "a missed day".
 - **Fix idea:** consume one shield per missed day, or cap the gap a shield can cover.
 
-### B6. Two different streak rules exist, and the one in use counts app opens
+### B6 (fixed). Two different streak rules exist, and the one in use counts app opens
 - **Where:** `app/store/useAppStore.ts` (`checkStreakOnOpen`) and
   `app/screens/ScheduleScreen.tsx` (`handleToggle`).
 - **Repro 1:** open the app every day and complete nothing. The streak grows,
@@ -87,7 +90,7 @@ Line numbers are as of the commit that added the entry.
   "opened the app" on one path and "completed a task" on the other.
 - **Fix idea:** pick one rule and put it in one function.
 
-### B7. Repeat instances are created for any date you look at
+### B7 (fixed). Repeat instances are created for any date you look at
 - **Where:** `app/db/queries.ts`, `ensureRepeatInstances` (called by `getTasksForDate`).
 - **Repro:** create a daily task, then browse the Schedule far into the future.
   Every date visited gets a permanent row.
@@ -101,7 +104,7 @@ Line numbers are as of the commit that added the entry.
 - **Impact:** none in Expo Go (config plugins only run in native builds). It would
   matter for a real build.
 
-### B9. The journal bonus can be farmed by re-saving the same entry
+### B9 (fixed). The journal bonus can be farmed by re-saving the same entry
 - **Where:** `app/screens/JournalScreen.tsx`, `handleSave` (calls
   `incrementReflectionCount()` on every save).
 - **Repro:** write today's reflection, then open it and tap Save nine more
@@ -126,7 +129,7 @@ Line numbers are as of the commit that added the entry.
   `app/SETUP_GOOGLE_CALENDAR.md` ("running inside Expo Go", "Expo's auth proxy").
 - **Impact:** documentation only, but it will cost time. See V1.
 
-### B12. "Delete this occurrence" on a repeating task does not stick
+### B12 (fixed). "Delete this occurrence" on a repeating task does not stick
 - **Where:** `app/db/queries.ts`, `ensureRepeatInstances` (called by
   `getTasksForDate`), together with `deleteTask`.
 - **Why:** an occurrence is "missing" if no row has that `master_id` and date,
@@ -142,7 +145,7 @@ Line numbers are as of the commit that added the entry.
   `master_id, date`, or a `deleted` flag on the instance row) and have
   `ensureRepeatInstances` respect it.
 
-### B13. Moving one occurrence of a repeating task leaves a copy behind
+### B13 (fixed). Moving one occurrence of a repeating task leaves a copy behind
 - **Where:** same mechanism as B12, with `moveTask`.
 - **Repro:** create a weekly task on Monday, open it, "Move to" Tuesday. Tuesday
   now has the task. Go back to Monday: it has been re-created there too.
@@ -151,7 +154,7 @@ Line numbers are as of the commit that added the entry.
 - **Proof:** `__tests__/repeatAndConflicts.test.ts`, `test.failing` B13.
 - **Fix idea:** the same exception record as B12 (moving = skip the original date).
 
-### B14. Turning repeat on while editing an existing task does nothing
+### B14 (fixed). Turning repeat on while editing an existing task does nothing
 - **Where:** `app/db/queries.ts`, `updateTask` (only `createTask` sets `is_master`).
 - **Repro (read from code, not run):** create a one-off task, edit it, choose
   Repeat → Daily, Save. `repeat_type` is updated but `is_master` stays 0, so

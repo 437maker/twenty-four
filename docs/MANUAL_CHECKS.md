@@ -561,6 +561,59 @@ Needs a fresh install (or Settings → reset all data).
 
 ---
 
+## Fixes run (Phase A + B + C, 2026-11-16)
+
+Do these on the iPhone after publishing the Phase A/B/C update.
+
+### G1. Analytics stay honest when the week is planned ahead
+
+- [ ] On the Schedule tab, add tasks to tomorrow and 2 days from now (any pillar).
+  Do NOT complete them.
+- [ ] Go to Analytics. The weekly bar chart shows today's bar in amber ("in
+  progress") and the future bars as outlined (soft purple), not as 0% red bars.
+- [ ] The "This week" adherence card only counts past completed days. It does
+  NOT drop because of unfinished future tasks.
+- [ ] The "Overall" adherence is also unchanged by the future tasks.
+- [ ] Monthly section: tap on a future date in the consistency grid. The tooltip
+  says "Planned: X tasks, Yh", not "0% — 0 tasks completed".
+- [ ] The future dates show as outlined circles, not filled colored circles.
+
+### G2. Today shows "In progress"
+
+- [ ] On Analytics, today's bar has an amber outline (not red or green).
+- [ ] Complete one task today. Today's bar height increases.
+- [ ] The adherence card does not count today's uncompleted tasks as missed.
+
+### G3. Streak only grows when a task is done
+
+- [ ] From a fresh streak of 0: open the app, do NOT complete any task. Close
+  and reopen: streak is still 0.
+- [ ] Complete one task. Close and reopen: streak is now 1.
+- [ ] Close and reopen without completing anything: streak stays 1.
+
+### G4. Re-saving a journal entry pays nothing
+
+- [ ] Write today's reflection and save it. Note the treat count.
+- [ ] Open the same entry and tap Save again 5 times. Treat count is unchanged.
+- [ ] The reflection count in the monthly section shows 1, not 6.
+
+### G5. "Delete this occurrence" of a repeating task sticks
+
+- [ ] Create a daily task. Navigate to tomorrow in the Schedule.
+- [ ] Long-press the task → "Delete this occurrence". Confirm.
+- [ ] Navigate away and come back to tomorrow: the task is gone.
+- [ ] Go to the day after tomorrow: the task is still there (only one occurrence deleted).
+
+### G6. Export and Import round-trip
+
+- [ ] Settings → "Export my data". The share sheet opens. Save the file to Files.
+- [ ] Add a new task. Settings → "Restore from backup". Pick the saved file.
+  Confirm the two-step prompt.
+- [ ] The app shows the data from the backup (the new task is gone).
+- [ ] All tasks, journal entries, and treats are correct.
+
+---
+
 ## Lively run (2026-11-16)
 
 Do these on the iPhone after the update has loaded (close and reopen Expo Go

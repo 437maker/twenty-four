@@ -26,7 +26,7 @@ import {
   scheduleNotifications,
   cancelAllNotifications,
 } from '../utils/notifications';
-import { exportDataToFile } from '../services/dataExport';
+import { exportDataToFile, importDataFromFile } from '../services/dataExport';
 import { clearTokens } from '../services/googleAuth';
 import { changeTreats, grantChest } from '../db/queries';
 import CalendarSettingsScreen from './CalendarSettingsScreen';
@@ -75,7 +75,7 @@ interface Props {
 }
 
 export default function SettingsScreen({ visible, onClose }: Props) {
-  const { settings, updateSettings, resetAllData, refreshTreatCount, resetRestState, forceDelivery } = useAppStore();
+  const { settings, updateSettings, loadSettings, resetAllData, refreshTreatCount, resetRestState, forceDelivery } = useAppStore();
 
   const [name, setName]                       = useState('');
   const [careEnabled, setCareEnabled]         = useState(false);
@@ -90,6 +90,7 @@ export default function SettingsScreen({ visible, onClose }: Props) {
   const [eveningTime, setEveningTime]         = useState('20:00');
 
   const [exporting, setExporting]             = useState(false);
+  const [importing, setImporting]             = useState(false);
   const [deleting, setDeleting]               = useState(false);
   const [calendarOpen, setCalendarOpen]       = useState(false);
   const [galleryOpen, setGalleryOpen]         = useState(false); // Companion Gallery (review screen)
@@ -234,6 +235,35 @@ export default function SettingsScreen({ visible, onClose }: Props) {
       Alert.alert('Export failed', String(err?.message ?? err));
     } finally {
       setExporting(false);
+    }
+  }
+
+  // ── Data import ───────────────────────────────────────────────────────────────
+  // Two-step confirmation (same pattern as delete) since this overwrites everything.
+  function handleImport() {
+    if (importing) return;
+    Alert.alert(
+      'Restore from backup?',
+      'This will replace ALL your current data (tasks, journal, streaks, treats, items) with the data from the backup file. This cannot be undone.\n\nMake sure you have an export of your current data if you want to keep it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Choose backup file', onPress: runImport },
+      ]
+    );
+  }
+
+  async function runImport() {
+    setImporting(true);
+    try {
+      const summary = await importDataFromFile();
+      // After import, reload settings + data in the store
+      await loadSettings();
+      Alert.alert('Restore complete', summary);
+    } catch (err: any) {
+      if (String(err?.message).includes('No file selected')) return; // user cancelled picker
+      Alert.alert('Restore failed', String(err?.message ?? err));
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -549,6 +579,24 @@ export default function SettingsScreen({ visible, onClose }: Props) {
             >
               <Text style={styles.exportBtnText}>
                 {exporting ? 'Exporting…' : '📤 Export my data'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.sectionSub, { marginTop: 8 }]}>
+              Restore from a backup file — replaces all current data.
+            </Text>
+            <TouchableOpacity
+              style={[styles.exportBtn, importing && styles.exportBtnDisabled]}
+              onPress={handleImport}
+              disabled={importing}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Restore from backup"
+              accessibilityHint="Pick a backup JSON file. Asks you to confirm before overwriting data."
+              accessibilityState={{ disabled: importing, busy: importing }}
+            >
+              <Text style={styles.exportBtnText}>
+                {importing ? 'Restoring…' : '📥 Restore from backup'}
               </Text>
             </TouchableOpacity>
 
