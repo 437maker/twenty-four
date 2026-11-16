@@ -133,6 +133,7 @@ export interface DayAnalytics {
   adherence: number;   // 0-100
   tasks: Task[];
   isException: boolean;
+  isFuture?: boolean;  // Phase A: true when date > today; excluded from averages
 }
 
 // ─── Treat History ────────────────────────────────────────────────────────────

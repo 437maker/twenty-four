@@ -58,6 +58,16 @@ export function formatTime(timeString: string): string {
   return `${h}:${minutes.toString().padStart(2, '0')} ${period}`;
 }
 
+// Phase A: classify any date relative to now using local calendar days.
+// Returns 'past' | 'today' | 'future'.
+export function dayStatus(date: string, now?: Date): 'past' | 'today' | 'future' {
+  const ref = now ?? new Date();
+  const today = format(ref, 'yyyy-MM-dd');
+  if (date < today) return 'past';
+  if (date === today) return 'today';
+  return 'future';
+}
+
 // Converts a JavaScript Date object's time into "HH:MM" string format.
 // e.g. a Date set to 9:05am → "09:05"
 export function dateToTimeString(date: Date): string {

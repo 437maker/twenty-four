@@ -44,6 +44,7 @@ import {
   calculatePlanAdherence,
   getHoursPerPillar,
   getLastNDates,
+  getCurrentWeekDates,
   adherenceColor,
   buildDayAnalytics,
   weeklyAdherence,
@@ -53,7 +54,7 @@ import {
 } from '../utils/calculations';
 
 // Date utilities
-import { getTodayString } from '../utils/dateHelpers';
+import { getTodayString, dayStatus } from '../utils/dateHelpers';
 
 // TypeScript types
 import { Task, DayAnalytics, StreakHistoryEntry } from '../types';
@@ -105,6 +106,9 @@ export default function AnalyticsScreen() {
   // All 30 days of analytics data (one DayAnalytics per day)
   const [days30, setDays30] = useState<DayAnalytics[]>([]);
 
+  // Current calendar week (Mon–Sun) — may include future days with isFuture=true
+  const [daysThisWeek, setDaysThisWeek] = useState<DayAnalytics[]>([]);
+
   // Completed streak history rows
   const [streakHistory, setStreakHistory] = useState<StreakHistoryEntry[]>([]);
 
@@ -153,6 +157,20 @@ export default function AnalyticsScreen() {
       analytics.sort((a, b) => a.date.localeCompare(b.date));
       setDays30(analytics);
 
+      // 5b. Build Mon–Sun of this calendar week (may include future planned days)
+      const weekDates  = getCurrentWeekDates();
+      const weekTaskMap = await getTasksForDates(weekDates);
+      const weekExceptions = new Set<string>();
+      await Promise.all(
+        weekDates.map(async (date) => {
+          const entry = await getJournalEntry(date);
+          if (entry?.is_exception_day) weekExceptions.add(date);
+        })
+      );
+      const weekAnalytics = buildDayAnalytics(weekTaskMap, weekExceptions);
+      weekAnalytics.sort((a, b) => a.date.localeCompare(b.date));
+      setDaysThisWeek(weekAnalytics);
+
       // 6. Load the most recent completed streaks (up to 5)
       const streaks = await getRecentStreaks(5);
       setStreakHistory(streaks);
@@ -190,11 +208,11 @@ export default function AnalyticsScreen() {
   const totalTasks = days30.reduce((sum, d) => sum + d.tasks.length, 0);
   const hasAnyData = totalTasks > 0;
 
-  // Slice out the last 7 days and last 14 days from our sorted 30-day array
-  const days7  = days30.slice(-7);
+  // Phase A: weekly bar chart uses Mon–Sun (daysThisWeek); adherence uses past-only
+  const days7  = daysThisWeek.length > 0 ? daysThisWeek : days30.slice(-7);
   const days14 = days30.slice(-14);
 
-  // Adherence percentages for the summary cards
+  // Adherence percentages for the summary cards (future days excluded in weeklyAdherence)
   const thisWeekAdherence = weeklyAdherence(days7);
   const overallAdherence  = weeklyAdherence(days30);
 
@@ -210,8 +228,10 @@ export default function AnalyticsScreen() {
   const mostBalanced  = mostBalancedDay(days7, targets);
   const leastBalanced = leastBalancedDay(days7, targets);
 
-  // Average hours per pillar this week (sum ÷ number of days that have tasks)
-  const daysWithTasks7 = days7.filter((d) => d.tasks.length > 0);
+  // Average hours per pillar this week (sum ÷ number of past days with tasks)
+  // Phase A: exclude future days and today (in-progress) from the average
+  const today = getTodayString();
+  const daysWithTasks7 = days7.filter((d) => d.tasks.length > 0 && !d.isFuture && d.date !== today);
   const avgPillarHours = daysWithTasks7.length === 0
     ? { work: 0, personal: 0, sleep: 0, care: 0 }
     : {
@@ -236,7 +256,7 @@ export default function AnalyticsScreen() {
     // "You're most consistent on [Day]" — find day-of-week with highest avg adherence
     const dowSums: Record<number, { total: number; count: number }> = {};
     for (const day of days30) {
-      if (day.tasks.length === 0) continue;
+      if (day.tasks.length === 0 || day.isFuture || day.date === today) continue;
       const dow = new Date(day.date + 'T12:00:00').getDay();
       if (!dowSums[dow]) dowSums[dow] = { total: 0, count: 0 };
       dowSums[dow].total += day.adherence;
@@ -397,45 +417,79 @@ export default function AnalyticsScreen() {
             {/* Bar chart container — a horizontal row of 7 bars */}
             <View style={styles.barChartContainer}>
               {days7.map((day) => {
+                const status    = dayStatus(day.date);
+                const isToday   = status === 'today';
+                const isFuture  = status === 'future';
                 const hasData   = day.tasks.length > 0;
-                const barColor  = adherenceColor(day.adherence, hasData);
-                // Bar height is proportional to adherence (max 120px)
-                const barHeight = hasData ? Math.max(6, (day.adherence / 100) * 120) : 6;
                 const isSelected = selectedDay === day.date;
+
+                // Phase A: future bars are outlined "planned" (no fill).
+                // Today shows an "in-progress" ring (amber outline, partial fill).
+                let barColor: string;
+                let barHeight: number;
+                let barBorderWidth: number;
+                let barBorderColor: string;
+                let barBgColor: string;
+
+                if (isFuture) {
+                  barHeight      = hasData ? 40 : 6;
+                  barBorderWidth = hasData ? 2  : 1;
+                  barBorderColor = '#B0A8D8';   // soft purple outline
+                  barBgColor     = 'transparent';
+                  barColor       = 'transparent';
+                } else if (isToday) {
+                  barHeight      = hasData ? Math.max(6, (day.adherence / 100) * 120) : 6;
+                  barBorderWidth = isSelected ? 2 : 1;
+                  barBorderColor = '#FFC107';   // amber = in-progress
+                  barBgColor     = adherenceColor(day.adherence, hasData);
+                  barColor       = barBgColor;
+                } else {
+                  barHeight      = hasData ? Math.max(6, (day.adherence / 100) * 120) : 6;
+                  barBorderWidth = isSelected ? 2 : 0;
+                  barBorderColor = '#3C3489';
+                  barBgColor     = adherenceColor(day.adherence, hasData);
+                  barColor       = barBgColor;
+                }
 
                 return (
                   <TouchableOpacity
                     key={day.date}
                     style={styles.barWrapper}
-                    onPress={() =>
-                      // Tap toggles selection — tap same bar again to deselect
-                      setSelectedDay(isSelected ? null : day.date)
-                    }
+                    onPress={() => setSelectedDay(isSelected ? null : day.date)}
                     activeOpacity={0.7}
                   >
-                    {/* Percentage label above the bar (hidden if 0 and no data) */}
+                    {/* Percentage label above the bar */}
                     <Text style={styles.barLabel}>
-                      {hasData ? `${day.adherence}%` : ''}
+                      {isFuture
+                        ? (hasData ? '·' : '')
+                        : isToday
+                          ? (hasData ? `${day.adherence}%` : '')
+                          : (hasData ? `${day.adherence}%` : '')}
                     </Text>
 
-                    {/* The actual bar — sits at the bottom of a 130px tall space */}
+                    {/* The actual bar */}
                     <View style={styles.barTrack}>
                       <View
                         style={[
                           styles.bar,
                           {
                             height:          barHeight,
-                            backgroundColor: barColor,
-                            // Highlight selected bar with a slight border
-                            borderWidth:     isSelected ? 2 : 0,
-                            borderColor:     '#3C3489',
+                            backgroundColor: barBgColor,
+                            borderWidth:     barBorderWidth,
+                            borderColor:     barBorderColor,
                           },
                         ]}
                       />
                     </View>
 
                     {/* Day label below the bar: Mon, Tue, … */}
-                    <Text style={styles.barDayLabel}>{dayAbbr(day.date)}</Text>
+                    <Text style={[
+                      styles.barDayLabel,
+                      isToday   && { color: '#FFC107', fontWeight: '700' },
+                      isFuture  && { color: '#B0A8D8' },
+                    ]}>
+                      {dayAbbr(day.date)}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -454,11 +508,11 @@ export default function AnalyticsScreen() {
             {/* Grid: 7 dots per row, each 14px wide with 6px gap */}
             <View style={styles.dotGrid}>
               {days30.map((day) => {
-                const today = getTodayString();
-                // Guard against future dates (shouldn't happen with getLastNDates, but be safe)
-                const isFuture = day.date > today;
+                const status   = dayStatus(day.date);
+                const isFut    = day.isFuture || status === 'future';
+                const isToday  = status === 'today';
                 const hasData  = day.tasks.length > 0;
-                const color    = adherenceColor(day.adherence, hasData);
+                const color    = isFut ? '#E0E0E0' : adherenceColor(day.adherence, hasData);
 
                 return (
                   <View
@@ -466,9 +520,14 @@ export default function AnalyticsScreen() {
                     style={[
                       styles.dot,
                       {
-                        backgroundColor: color,
-                        // Future dates are very faint
-                        opacity: isFuture ? 0.15 : 1,
+                        backgroundColor: isFut ? 'transparent' : color,
+                        borderWidth:     isFut ? 1 : 0,
+                        borderColor:     isFut ? '#B0A8D8' : 'transparent',
+                        // Today gets a subtle amber ring
+                        ...(isToday && !isFut ? {
+                          borderWidth: 1,
+                          borderColor: '#FFC107',
+                        } : {}),
                       },
                     ]}
                   />

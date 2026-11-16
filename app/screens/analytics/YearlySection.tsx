@@ -24,6 +24,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 // ─── Internal imports ─────────────────────────────────────────────────────────
 import { Settings, DayAnalytics } from '../../types';
+import { dayStatus } from '../../utils/dateHelpers';
 import {
   getTasksForMonth,
   getTreatEarnedForYear,
@@ -112,10 +113,11 @@ function isLeapYear(year: number): boolean {
 }
 
 /** Given a DayAnalytics adherence value + whether the day has data,
- *  returns the heatmap square colour. */
-function heatmapColor(adherence: number, hasData: boolean, isEmpty: boolean): string {
-  if (isEmpty) return 'transparent'; // before Jan 1 or after Dec 31 padding cells
-  if (!hasData) return '#E5E7EB';   // tracked nothing that day
+ *  returns the heatmap square colour. Future days return special sentinel. */
+function heatmapColor(adherence: number, hasData: boolean, isEmpty: boolean, isFuture?: boolean): string {
+  if (isEmpty)   return 'transparent'; // padding cells
+  if (isFuture)  return 'planned';     // sentinel; caller renders outlined cell
+  if (!hasData)  return '#E5E7EB';     // no tasks logged
   if (adherence >= 80) return '#4CAF50';
   if (adherence >= 65) return '#FFC107';
   return '#EF5350';
@@ -210,10 +212,11 @@ export default function YearlySection({ settings, appStartDate }: Props) {
         ...streaks.map((s) => s.length),
       );
 
-      // ── Step 3: Aggregated pillar stats ─────────────────────────────────────
-      const daysWithData     = allDayAnalytics.filter((d) => d.tasks.length > 0);
+      // ── Step 3: Aggregated pillar stats (future days excluded) ─────────────
+      const pastAnalytics    = allDayAnalytics.filter((d) => !d.isFuture);
+      const daysWithData     = pastAnalytics.filter((d) => d.tasks.length > 0);
       const totalDaysTracked = daysWithData.length;
-      const overallAdherence = weeklyAdherence(allDayAnalytics);
+      const overallAdherence = weeklyAdherence(pastAnalytics);
 
       // Average completed hours per tracked day, by pillar
       const avgPillarHoursPerDay = { work: 0, personal: 0, sleep: 0, care: 0 };
@@ -296,6 +299,7 @@ export default function YearlySection({ settings, appStartDate }: Props) {
     hasData:   boolean;
     isEmpty:   boolean;   // true = padding cell outside Jan 1 – Dec 31
     isToday:   boolean;
+    isFuture:  boolean;
   }>> => {
     // Build fast lookup: dateStr → DayAnalytics
     const lookup: Record<string, DayAnalytics> = {};
@@ -332,13 +336,15 @@ export default function YearlySection({ settings, appStartDate }: Props) {
         // Cells outside the viewed year are "empty" padding
         const isEmpty = yr !== viewYear;
         const day     = lookup[ds];
+        const isFuture = !isEmpty && dayStatus(ds) === 'future';
 
         rows[dow].push({
           dateStr:   ds,
           adherence: day?.adherence ?? 0,
-          hasData:   !isEmpty && (day?.tasks.length ?? 0) > 0,
+          hasData:   !isEmpty && !isFuture && (day?.tasks.length ?? 0) > 0,
           isEmpty,
           isToday:   ds === today && yr === viewYear,
+          isFuture,
         });
       }
     }
@@ -709,22 +715,29 @@ export default function YearlySection({ settings, appStartDate }: Props) {
                 {heatmapGrid.map((rowCells, dowIndex) => (
                   <View key={dowIndex} style={styles.heatmapRow}>
                     {rowCells.map((cell, weekIndex) => {
-                      const color = heatmapColor(
+                      const colorKey = heatmapColor(
                         cell.adherence,
                         cell.hasData,
                         cell.isEmpty,
+                        cell.isFuture,
                       );
+                      const isPlanned = colorKey === 'planned';
                       return (
                         <View
                           key={weekIndex}
                           style={[
                             styles.heatmapCell,
-                            {
-                              backgroundColor: color,
-                              // Today's cell gets a purple outline
-                              borderWidth:  cell.isToday ? 1 : 0,
-                              borderColor:  '#3C3489',
-                            },
+                            isPlanned
+                              ? {
+                                  backgroundColor: 'transparent',
+                                  borderWidth:     cell.hasData ? 1 : 0.5,
+                                  borderColor:     '#B0A8D8',
+                                }
+                              : {
+                                  backgroundColor: colorKey,
+                                  borderWidth:     cell.isToday ? 1 : 0,
+                                  borderColor:     '#3C3489',
+                                },
                           ]}
                         />
                       );
@@ -751,6 +764,10 @@ export default function YearlySection({ settings, appStartDate }: Props) {
               <View style={styles.heatmapLegendItem}>
                 <View style={[styles.heatmapLegendSwatch, { backgroundColor: '#E5E7EB' }]} />
                 <Text style={styles.heatmapLegendText}>No data</Text>
+              </View>
+              <View style={styles.heatmapLegendItem}>
+                <View style={[styles.heatmapLegendSwatch, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#B0A8D8' }]} />
+                <Text style={styles.heatmapLegendText}>Planned</Text>
               </View>
             </View>
           </View>

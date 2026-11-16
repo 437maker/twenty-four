@@ -3,6 +3,7 @@
 
 import { format } from 'date-fns';
 import { Task, DayAnalytics } from '../types';
+import { dayStatus } from './dateHelpers';
 
 // ─── Plan adherence ───────────────────────────────────────────────────────────
 // = (completed hours / total planned hours) × 100
@@ -137,6 +138,20 @@ export function weeklyBoxLabel(tier: 'gold' | 'silver' | 'basic'): string {
 
 // ─── Analytics helpers ────────────────────────────────────────────────────────
 
+// Returns the 7 date strings for Mon–Sun of the calendar week that contains
+// `now` (default: today). May include future dates. Uses local calendar days.
+export function getCurrentWeekDates(now?: Date): string[] {
+  const ref = now ?? new Date();
+  const dow = ref.getDay(); // 0=Sun, 1=Mon, …
+  const monday = new Date(ref);
+  monday.setDate(ref.getDate() - ((dow + 6) % 7)); // step back to Monday
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return format(d, 'yyyy-MM-dd');
+  });
+}
+
 // Build an array of date strings for the last N days (today last).
 // Uses LOCAL calendar days: format() reads the local year/month/day, while
 // toISOString() would give the UTC day (already "tomorrow" on a Boston evening).
@@ -158,25 +173,39 @@ export function adherenceColor(adherence: number, hasData: boolean): string {
   return '#EF5350';                       // red
 }
 
-// Given a map of date → tasks, return DayAnalytics for each date
+// Given a map of date → tasks, return DayAnalytics for each date.
+// Phase A: future days get adherence = 0 and isFuture = true so callers can
+// exclude them from averages; today counts only completed tasks.
 export function buildDayAnalytics(
   taskMap: { [date: string]: Task[] },
   exceptionDates: Set<string>
 ): DayAnalytics[] {
-  return Object.entries(taskMap).map(([date, tasks]) => ({
-    date,
-    adherence:   calculatePlanAdherence(tasks),
-    tasks,
-    isException: exceptionDates.has(date),
-  }));
+  return Object.entries(taskMap).map(([date, tasks]) => {
+    const status = dayStatus(date);
+    const isFuture = status === 'future';
+    // For today, adherence is based only on completed tasks (in-progress day).
+    // For future days, return adherence 0 but mark them separately.
+    const adherence = isFuture ? 0 : calculatePlanAdherence(tasks);
+    return {
+      date,
+      adherence,
+      tasks,
+      isException: exceptionDates.has(date),
+      isFuture,
+    };
+  });
 }
 
-// Average weekly adherence across an array of DayAnalytics
+// Average weekly adherence across an array of DayAnalytics.
+// Phase A: future days and today (in-progress) are excluded from averages.
 export function weeklyAdherence(days: DayAnalytics[]): number {
-  const withData = days.filter((d) => d.tasks.length > 0);
-  if (withData.length === 0) return 0;
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const countableDays = days.filter((d) =>
+    !d.isFuture && d.date !== today && d.tasks.length > 0
+  );
+  if (countableDays.length === 0) return 0;
   return Math.round(
-    withData.reduce((s, d) => s + d.adherence, 0) / withData.length
+    countableDays.reduce((s, d) => s + d.adherence, 0) / countableDays.length
   );
 }
 
@@ -195,8 +224,9 @@ export function mostBalancedDay(
   let bestDate = '';
   let bestScore = Infinity;
 
+  const today = format(new Date(), 'yyyy-MM-dd');
   for (const day of days) {
-    if (day.tasks.length === 0) continue;
+    if (day.tasks.length === 0 || day.isFuture || day.date === today) continue;
     const hours  = getHoursPerPillar(day.tasks);
     const pillars = Object.keys(targets) as (keyof typeof targets)[];
     const totalTarget = pillars.reduce((s, p) => s + targets[p], 0);
@@ -221,8 +251,9 @@ export function leastBalancedDay(
   let worstDate = '';
   let worstScore = -1;
 
+  const today2 = format(new Date(), 'yyyy-MM-dd');
   for (const day of days) {
-    if (day.tasks.length === 0) continue;
+    if (day.tasks.length === 0 || day.isFuture || day.date === today2) continue;
     const hours  = getHoursPerPillar(day.tasks);
     const pillars = Object.keys(targets) as (keyof typeof targets)[];
     const totalTarget = pillars.reduce((s, p) => s + targets[p], 0);

@@ -25,7 +25,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 import { Settings, DayAnalytics, JournalEntry } from '../../types';
-import { getTodayString } from '../../utils/dateHelpers';
+import { getTodayString, dayStatus } from '../../utils/dateHelpers';
 
 // ─── Database queries ─────────────────────────────────────────────────────────
 import {
@@ -134,12 +134,14 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
     return d.getMonth();
   })();
 
-  // Cannot go forward past today's month.
+  // Phase A: allow navigating up to 1 month ahead so users can see planned tasks.
   const todayYear  = new Date().getFullYear();
   const todayMonth = new Date().getMonth(); // 0-indexed
+  const maxYear    = todayMonth === 11 ? todayYear + 1 : todayYear;
+  const maxMonth   = todayMonth === 11 ? 0 : todayMonth + 1;
 
   const canGoBack    = (viewYear > minYear)  || (viewYear === minYear  && viewMonth > minMonth);
-  const canGoForward = (viewYear < todayYear) || (viewYear === todayYear && viewMonth < todayMonth);
+  const canGoForward = (viewYear < maxYear)   || (viewYear === maxYear  && viewMonth < maxMonth);
 
   // ── Navigation callbacks ─────────────────────────────────────────────────────
   const goBack = useCallback(() => {
@@ -256,13 +258,18 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
 
   // Total days in the month (e.g. 31 for January)
   const totalDays  = daysInMonth(viewYear, viewMonth);
-  // Days that have at least one task logged
-  const daysTracked = dayAnalytics.filter(d => d.tasks.length > 0).length;
-  // Average adherence using the existing helper (ignores days with no tasks)
+
+  // Phase A: derive metrics using only past/today data (not future planned days)
+  const today = todayStr();
+  const pastDays = dayAnalytics.filter(d => !d.isFuture && d.date !== today);
+
+  // Days that have at least one task logged (past only)
+  const daysTracked = pastDays.filter(d => d.tasks.length > 0).length;
+  // Average adherence using the existing helper (future & today excluded inside weeklyAdherence)
   const avgAdherence = weeklyAdherence(dayAnalytics);
 
-  // Find the single best and worst day (only among days that have task data)
-  const daysWithData = dayAnalytics.filter(d => d.tasks.length > 0);
+  // Find the single best and worst day (only among past days with task data)
+  const daysWithData = pastDays.filter(d => d.tasks.length > 0);
   const bestDay  = daysWithData.length > 0
     ? daysWithData.reduce((a, b) => b.adherence > a.adherence ? b : a)
     : null;
@@ -270,10 +277,9 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
     ? daysWithData.reduce((a, b) => b.adherence < a.adherence ? b : a)
     : null;
 
-  // Consecutive-day streak count:
-  // Walk through sorted days and count pairs where both day[i] and day[i-1] have data.
+  // Consecutive-day streak count (past days only)
   const streakDays = (() => {
-    const sorted = [...dayAnalytics].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...pastDays].sort((a, b) => a.date.localeCompare(b.date));
     let count = 0;
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].tasks.length > 0 && sorted[i - 1].tasks.length > 0) count++;
@@ -281,17 +287,17 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
     return count;
   })();
 
-  // Total hours per pillar for the whole month
+  // Total hours per pillar for the whole month (past only; getHoursPerPillar already uses completed)
   const totalPillarHours: Record<PillarKey, number> = { work: 0, personal: 0, sleep: 0, care: 0 };
-  for (const day of dayAnalytics) {
+  for (const day of pastDays) {
     const h = getHoursPerPillar(day.tasks);
     totalPillarHours.work     += h.work;
     totalPillarHours.personal += h.personal;
     totalPillarHours.sleep    += h.sleep;
     totalPillarHours.care     += h.care;
   }
-  // Only count days that actually had tracked tasks for the average
-  const trackedDays = Math.max(1, dayAnalytics.filter(d => d.tasks.length > 0).length);
+  // Only count past days that actually had tracked tasks for the average
+  const trackedDays = Math.max(1, pastDays.filter(d => d.tasks.length > 0).length);
 
   // Total hours across all pillars (used for stacked bar width calculation)
   const totalAllHours = PILLARS.reduce((sum, p) => sum + totalPillarHours[p], 0);
@@ -440,50 +446,73 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
 
         <View style={styles.barChartContainer}>
           {weekBuckets.map((bucket, weekIndex) => {
-            // Compute the average adherence for this bucket (skip days with no tasks)
+            // Phase A: separate past/today from future days in this bucket
             const daysInBucket = bucket.map(date => analyticsMap[date]).filter(Boolean);
-            const bucketWithData = daysInBucket.filter(d => d && d.tasks.length > 0);
-            const hasData = bucketWithData.length > 0;
-            const bucketAdherence = hasData
+            const futureDays  = daysInBucket.filter(d => d?.isFuture);
+            const pastInBucket = daysInBucket.filter(d => !d?.isFuture && d.date !== today);
+            const bucketWithPastData = pastInBucket.filter(d => d.tasks.length > 0);
+            const futureDaysWithTasks = futureDays.filter(d => d.tasks.length > 0);
+
+            const isFutureBucket = pastInBucket.length === 0 && futureDays.length > 0;
+            const hasPastData    = bucketWithPastData.length > 0;
+            const bucketAdherence = hasPastData
               ? Math.round(
-                  bucketWithData.reduce((sum, d) => sum + d.adherence, 0) /
-                  bucketWithData.length
+                  bucketWithPastData.reduce((sum, d) => sum + d.adherence, 0) /
+                  bucketWithPastData.length
                 )
               : 0;
 
-            // Choose bar colour based on adherence thresholds
-            const barColor = hasData
-              ? bucketAdherence >= 80
-                ? '#4CAF50'          // green
-                : bucketAdherence >= 65
-                ? '#FFC107'          // amber
-                : '#EF5350'          // red
-              : '#E0E0E0';           // gray = no data
+            let barColor: string;
+            let barHeight: number;
+            let borderWidth: number;
+            let borderColor: string;
 
-            // Bar height proportional to adherence (max 100px)
-            const barHeight = hasData
-              ? Math.max(6, (bucketAdherence / 100) * 100)
-              : 6;
+            if (isFutureBucket) {
+              // Outlined planned bar
+              barHeight   = futureDaysWithTasks.length > 0 ? 40 : 6;
+              barColor    = 'transparent';
+              borderWidth = futureDaysWithTasks.length > 0 ? 2 : 1;
+              borderColor = '#B0A8D8';
+            } else {
+              barColor    = hasPastData
+                ? bucketAdherence >= 80 ? '#4CAF50' : bucketAdherence >= 65 ? '#FFC107' : '#EF5350'
+                : '#E0E0E0';
+              barHeight   = hasPastData ? Math.max(6, (bucketAdherence / 100) * 100) : 6;
+              borderWidth = 0;
+              borderColor = 'transparent';
+            }
 
             return (
               <View key={weekIndex} style={styles.weekBarWrapper}>
-                {/* Percentage label above the bar (blank if no data) */}
-                <Text style={styles.weekBarLabel}>
-                  {hasData ? `${bucketAdherence}%` : ''}
+                <Text style={[
+                  styles.weekBarLabel,
+                  isFutureBucket && { color: '#B0A8D8' },
+                ]}>
+                  {isFutureBucket
+                    ? (futureDaysWithTasks.length > 0 ? '·' : '')
+                    : (hasPastData ? `${bucketAdherence}%` : '')}
                 </Text>
 
-                {/* The track holds the bar at the bottom (bars grow upward) */}
                 <View style={styles.weekBarTrack}>
                   <View
                     style={[
                       styles.weekBar,
-                      { height: barHeight, backgroundColor: barColor },
+                      {
+                        height:          barHeight,
+                        backgroundColor: barColor,
+                        borderWidth,
+                        borderColor,
+                      },
                     ]}
                   />
                 </View>
 
-                {/* "Wk 1", "Wk 2", … label below the bar */}
-                <Text style={styles.weekBarDayLabel}>Wk {weekIndex + 1}</Text>
+                <Text style={[
+                  styles.weekBarDayLabel,
+                  isFutureBucket && { color: '#B0A8D8' },
+                ]}>
+                  Wk {weekIndex + 1}
+                </Text>
               </View>
             );
           })}
@@ -610,12 +639,20 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
               const dayData    = analyticsMap[dateStr];
               const hasData    = dayData && dayData.tasks.length > 0;
               const isException = dayData?.isException ?? false;
-              const isToday    = dateStr === todayStr();
+              const status     = dayStatus(dateStr);
+              const isFuture   = status === 'future' || !!dayData?.isFuture;
+              const isTodayCell = status === 'today';
 
-              // Choose circle fill colour:
-              // exception day → light purple, has data → adherence colour, no data → gray
+              // Phase A: future days get "planned" outlined circle (soft purple)
               let circleColor: string;
-              if (isException) {
+              let circleBorderWidth: number = 0;
+              let circleBorderColor: string = 'transparent';
+
+              if (isFuture) {
+                circleColor = 'transparent';
+                circleBorderWidth = hasData ? 1.5 : 1;
+                circleBorderColor = hasData ? '#7C6CD5' : '#D1C8F5';
+              } else if (isException) {
                 circleColor = '#EDE9FE'; // light purple
               } else if (hasData) {
                 circleColor = adherenceColor(dayData.adherence, true);
@@ -631,7 +668,6 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
                   key={dateStr}
                   style={styles.calendarCell}
                   onPress={() =>
-                    // Tap toggles: tap same cell again to dismiss tooltip
                     setTooltipDate(prev => (prev === dateStr ? null : dateStr))
                   }
                   activeOpacity={0.7}
@@ -640,17 +676,22 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
                   <View
                     style={[
                       styles.calendarCircle,
-                      { backgroundColor: circleColor },
-                      isToday && styles.calendarCircleToday,
+                      {
+                        backgroundColor: circleColor,
+                        borderWidth:     circleBorderWidth,
+                        borderColor:     circleBorderColor,
+                      },
+                      isTodayCell && styles.calendarCircleToday,
                     ]}
                   >
                     <Text
                       style={[
                         styles.calendarDayNum,
-                        // White text on dark/vivid backgrounds, dark text on pale ones
-                        hasData && !isException
-                          ? styles.calendarDayNumLight
-                          : styles.calendarDayNumDark,
+                        isFuture
+                          ? { color: '#9B8FC9' }
+                          : hasData && !isException
+                            ? styles.calendarDayNumLight
+                            : styles.calendarDayNumDark,
                       ]}
                     >
                       {dayNum}
@@ -669,6 +710,7 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
           <LegendDot color="#EF5350" label="<65%" />
           <LegendDot color="#E5E7EB" label="None" />
           <LegendDot color="#EDE9FE" label="Off" />
+          <LegendDot color="#D1C8F5" label="Planned" outlined />
         </View>
 
         {/* Tooltip — shown when a cell is tapped */}
@@ -684,6 +726,14 @@ export default function MonthlySection({ settings, appStartDate }: Props) {
                     month:   'short',
                     day:     'numeric',
                   });
+                  const isTooltipFuture = dayStatus(tooltipDate) === 'future';
+                  if (isTooltipFuture) {
+                    if (tooltipData && tooltipData.tasks.length > 0) {
+                      const totalHrs = tooltipData.tasks.reduce((s, t) => s + t.duration_hours, 0);
+                      return `${label}: Planned — ${tooltipData.tasks.length} task${tooltipData.tasks.length !== 1 ? 's' : ''}, ${totalHrs.toFixed(1)}h`;
+                    }
+                    return `${label}: Planned — no tasks yet`;
+                  }
                   if (tooltipData && tooltipData.tasks.length > 0) {
                     const completed = tooltipData.tasks.filter(t => t.completed).length;
                     return `${label}: ${tooltipData.adherence}% — ${completed} task${completed !== 1 ? 's' : ''} completed`;
@@ -752,10 +802,15 @@ function SummaryCard({
 
 // ─── Sub-component: LegendDot ─────────────────────────────────────────────────
 // A coloured dot + label for the calendar legend.
-function LegendDot({ color, label }: { color: string; label: string }) {
+function LegendDot({ color, label, outlined }: { color: string; label: string; outlined?: boolean }) {
   return (
     <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <View style={[
+        styles.legendDot,
+        outlined
+          ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#7C6CD5' }
+          : { backgroundColor: color },
+      ]} />
       <Text style={styles.legendLabel}>{label}</Text>
     </View>
   );
